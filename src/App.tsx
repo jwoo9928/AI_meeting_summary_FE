@@ -12,6 +12,8 @@ import RecordButton from './components/molecules/RecordButton'; // Import Record
 import AIInsightsPanel from './components/organisms/AIInsightsPanel'; // Import AIInsightsPanel
 import CurrentStepDisplay from './components/organisms/CurrentStepDisplay'; // Import CurrentStepDisplay
 import ReportPreview from './components/organisms/ReportPreview'; // Import ReportPreview
+import ChatbotSidebar from './components/organisms/ChatbotSidebar'; // Import ChatbotSidebar
+import DocumentTypeSelectionPopup from './components/molecules/DocumentTypeSelectionPopup'; // Import the new popup
 
 
 type Meeting = {
@@ -94,7 +96,10 @@ const App: React.FC = () => {
   const [warningMessage, setWarningMessage] = useState<string>(''); // Add warning message state
   const [showWarning, setShowWarning] = useState<boolean>(false); // Add warning visibility state
   const [showStopConfirmation, setShowStopConfirmation] = useState<boolean>(false); // State for stop confirmation popup
-  const [showLeftSidebar, setShowLeftSidebar] = useState(true); // State for Left Sidebar visibility
+  const [recordingCompleted, setRecordingCompleted] = useState<boolean>(false); // State to indicate recording is finished but processing hasn't started
+  const [showDocTypePopup, setShowDocTypePopup] = useState<boolean>(false); // State for document type selection popup
+  const [selectedDocTypes, setSelectedDocTypes] = useState<string[]>([]); // State for selected document types
+  const [activeLeftSidebar, setActiveLeftSidebar] = useState<'meetingList' | 'chatbot' | 'none'>('meetingList'); // Single state for active left sidebar
   // const [PDFGenerating, setPDFGenerating] = useState(false); // REMOVED - State seems unused in App.tsx
 
   // 단계 정의 수정 (5단계로 복구)
@@ -273,7 +278,8 @@ const App: React.FC = () => {
       setCurrentStep(0);
       // setPDFGenerating(false); // REMOVED
       setShowDocumentPanel(false);
-      setShowLeftSidebar(false);
+      // setShowLeftSidebar(false); // REMOVED - Now handled by activeLeftSidebar state
+      setActiveLeftSidebar('none'); // Hide any active left sidebar on new recording
       setShowAIInsights(false);
       setKeyInsights([]);
       setDocuments([]); // Clear previous documents
@@ -281,18 +287,56 @@ const App: React.FC = () => {
       setSentimentData([]);
       setLiveKeywords([]);
       setAiHighlightMode(false);
+      setRecordingCompleted(false); // Reset recording completed state
+      setShowDocTypePopup(false); // Ensure doc type popup is hidden
+      setSelectedDocTypes([]); // Clear selected doc types
       setProcessSteps(serverSteps.map(step => ({ ...step, status: 'pending' }))); // Reset steps visual state
       // Close WebSocket connection using the controller
       WebsocketController.disconnect();
     }
   };
 
-  // Handler for confirming stop recording and report generation
+  // Handler for confirming stop recording ONLY
   const handleConfirmStop = () => {
     setIsRecording(false);
-    setProcessingStarted(true);
+    // Don't start processing yet
+    // setProcessingStarted(true);
     setShowStopConfirmation(false); // Close the popup
+    setRecordingCompleted(true); // Set recording completed state
   };
+
+  // Handler for showing the document type selection popup (triggered by the "문서 생성" button)
+  const handleStartGeneration = () => {
+    // Don't start processing yet, show the popup first
+    // setProcessingStarted(true);
+    // setRecordingCompleted(false); // Keep this true to keep button state until generation confirmed
+    setSelectedDocTypes([]); // Clear previous selections
+    setShowDocTypePopup(true);
+  };
+
+  // Handler for confirming generation after selecting document types
+  const handleConfirmGeneration = () => {
+    // TODO: Send selectedDocTypes to the backend when initiating the connection/process
+    console.log('Selected document types:', selectedDocTypes); // Log selected types for now
+    setProcessingStarted(true); // Now start the actual processing
+    setShowDocTypePopup(false); // Hide the popup
+    setRecordingCompleted(false); // Hide the "Generate" button state and "Recording Completed" message
+  };
+
+  // Handler for canceling the document type selection
+  const handleCancelGeneration = () => {
+    setShowDocTypePopup(false); // Just hide the popup
+  };
+
+  // Handler for toggling document type selection
+  const handleDocTypeSelectionChange = (typeId: string) => {
+    setSelectedDocTypes(prev =>
+      prev.includes(typeId)
+        ? prev.filter(id => id !== typeId) // Remove if already selected
+        : [...prev, typeId] // Add if not selected
+    );
+  };
+
 
   // Handler for canceling stop recording
   const handleCancelStop = () => {
@@ -355,6 +399,9 @@ const App: React.FC = () => {
     setSentimentData([]);
     setLiveKeywords([]);
     setAiHighlightMode(false);
+    setRecordingCompleted(false); // Reset recording completed state
+    setShowDocTypePopup(false); // Ensure doc type popup is hidden on reset
+    setSelectedDocTypes([]); // Clear selected doc types on reset
     setProcessSteps(serverSteps.map(step => ({ ...step, status: 'pending' }))); // Reset steps to initial state
     // Close WebSocket connection using the controller
     WebsocketController.disconnect();
@@ -366,29 +413,53 @@ const App: React.FC = () => {
     setShowDocumentPanel(prev => !prev);
   };
 
-  // Toggle Left Sidebar Visibility
+  // Toggle Meeting List Sidebar
   const handleToggleLeftSidebar = () => {
-    setShowLeftSidebar(prev => !prev);
+    setActiveLeftSidebar(prev => prev === 'meetingList' ? 'none' : 'meetingList');
   };
 
-  // Determine if the final step is completed
-  const isProcessComplete = processSteps[serverSteps.length - 1]?.status === 'completed';
+  // Toggle Chatbot Sidebar
+  const handleToggleChatbotSidebar = () => {
+    setActiveLeftSidebar(prev => prev === 'chatbot' ? 'none' : 'chatbot');
+  };
+
+  // Calculate dynamic left margin for main content based on single active sidebar
+  const calculateLeftMargin = () => {
+    const meetingListWidth = '72'; // Corresponds to w-72 (288px)
+    if (activeLeftSidebar === 'none') {
+      return 'ml-0'; // No margin if no sidebar is active
+    }
+    return `ml-${meetingListWidth}`;
+  };
 
   return (
     <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
-      {/* Left Sidebar with Animation */}
+      {/* Left Sidebar Area with Animation - Renders only the active one */}
       <AnimatePresence>
-        {showLeftSidebar && (
+        {/* Chatbot Sidebar */}
+        {activeLeftSidebar === 'chatbot' && (
           <motion.div
+            key="chatbot-sidebar"
             initial={{ x: '-100%', opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '-100%', opacity: 0 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="fixed top-0 left-0 h-full z-30" // Use fixed positioning for overlap effect if needed, or adjust layout
-          // Or keep relative positioning if main content margin handles it:
-          // className="h-full" // Ensure it takes full height if not fixed
+            className="fixed top-0 left-0 h-full z-30 w-72" // Apply consistent width here too
           >
-            {/* Use MeetingListSidebar Organism */}
+            <ChatbotSidebar />
+          </motion.div>
+        )}
+
+        {/* Meeting List Sidebar */}
+        {activeLeftSidebar === 'meetingList' && (
+          <motion.div
+            key="meeting-list-sidebar"
+            initial={{ x: '-100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '-100%', opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="fixed top-0 left-0 h-full z-30 w-72" // No dynamic left needed
+          >
             <MeetingListSidebar
               meetings={meetings}
               menuOpenId={menuOpen}
@@ -402,9 +473,10 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       {/* Main Content Area */}
-      {/* Adjust margin based on both sidebars visibility */}
-      {/* MeetingListSidebar width is w-72 (288px) and RightSidebar width is w-72 (288px) */}
-      <div className={`flex-1 flex flex-col overflow-hidden relative transition-all duration-300 ease-in-out ${showLeftSidebar ? 'ml-72' : 'ml-0'} ${showDocumentPanel ? 'mr-72' : 'mr-0'}`}>
+      {/* Adjust margin based on the single active left sidebar and right sidebar visibility */}
+      <div className={`flex-1 flex flex-col overflow-hidden relative transition-all duration-300 ease-in-out 
+                   ${calculateLeftMargin()} 
+                   ${showDocumentPanel ? 'mr-72' : 'mr-0'}`}>
         {/* Use AppHeader Organism - Pass connectionStatus and sidebar toggles */}
         <AppHeader
           isRecording={isRecording}
@@ -414,25 +486,31 @@ const App: React.FC = () => {
           aiHighlightMode={aiHighlightMode}
           onToggleAiHighlight={() => setAiHighlightMode(!aiHighlightMode)}
           formatTime={formatTime}
-          showLeftSidebar={showLeftSidebar} // Pass left sidebar state
-          onToggleLeftSidebar={handleToggleLeftSidebar} // Pass left sidebar handler
-          showRightSidebar={showDocumentPanel} // Pass right sidebar state for button icon
+          activeLeftSidebar={activeLeftSidebar} // Pass the active sidebar state
+          onToggleLeftSidebar={handleToggleLeftSidebar} // Pass meeting list toggle handler
+          onToggleChatbotSidebar={handleToggleChatbotSidebar} // Pass chatbot toggle handler
+          showRightSidebar={showDocumentPanel} // Pass right sidebar state
           onToggleRightSidebar={handleToggleRightSidebar} // Pass right sidebar handler
         />
 
-        {/* Conditionally render ProcessStepsBar with animation */}
-        <AnimatePresence>
-          {!isProcessComplete && (
-            <motion.div
-              initial={{ opacity: 1, height: 'auto' }} // Start visible and with auto height
-              exit={{ opacity: 0, height: 0 }} // Fade out and collapse height
-              transition={{ duration: 0.3 }} // Animation duration
-            >
-              <ProcessStepsBar processSteps={processSteps} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+        {/* Conditionally render ProcessStepsBar with animation (Keep original logic) */}
+        {/* Determine if the final step is completed for ProcessStepsBar visibility */}
+        {(() => {
+          const isProcessCompleteForBar = processSteps[serverSteps.length - 1]?.status === 'completed';
+          return (
+            <AnimatePresence>
+              {!isProcessCompleteForBar && (
+                <motion.div
+                  initial={{ opacity: 1, height: 'auto' }} // Start visible and with auto height
+                  exit={{ opacity: 0, height: 0 }} // Fade out and collapse height
+                  transition={{ duration: 0.3 }} // Animation duration
+                >
+                  <ProcessStepsBar processSteps={processSteps} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          );
+        })()}
         {/* Main Scrollable Area */}
         <div className="flex-1 p-6 lg:p-8 overflow-auto bg-gray-50">
           <div className="max-w-6xl mx-auto">
@@ -445,24 +523,30 @@ const App: React.FC = () => {
                 isRecording={isRecording} // Pass isRecording state
               />
             )}
-            {/* Conditionally render CurrentStepDisplay with animation */}
-            <AnimatePresence>
-              {!isProcessComplete && (
-                <motion.div
-                  initial={{ opacity: 1 }} // Start visible
-                  exit={{ opacity: 0 }} // Fade out
-                  transition={{ duration: 0.3 }} // Animation duration
-                >
-                  <CurrentStepDisplay
-                    processingStarted={processingStarted}
-                    isRecording={isRecording}
-                    currentStep={currentStep}
-                    processSteps={processSteps}
-                    serverStepsLength={serverSteps.length}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Conditionally render CurrentStepDisplay with animation (Keep original logic) */}
+            {(() => {
+              const isProcessCompleteForDisplay = processSteps[serverSteps.length - 1]?.status === 'completed';
+              return (
+                <AnimatePresence>
+                  {!isProcessCompleteForDisplay && (
+                    <motion.div
+                      initial={{ opacity: 1 }} // Start visible
+                      exit={{ opacity: 0 }} // Fade out
+                      transition={{ duration: 0.3 }} // Animation duration
+                    >
+                      <CurrentStepDisplay
+                        processingStarted={processingStarted}
+                        isRecording={isRecording}
+                        currentStep={currentStep}
+                        processSteps={processSteps}
+                        serverStepsLength={serverSteps.length}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              );
+            })()}
+
 
             {/* Use AIInsightsPanel Component */}
             <AIInsightsPanel
@@ -479,15 +563,18 @@ const App: React.FC = () => {
               isRecording={isRecording}
               processingStarted={processingStarted}
               generatedHtml={generatedHtml}
+              recordingCompleted={recordingCompleted} // Pass recordingCompleted state
             />
           </div>
         </div>
 
-        {/* Use RecordButton Component */}
+        {/* Use RecordButton Component - Pass recordingCompleted and generation handler */}
         <RecordButton
           isRecording={isRecording}
           processingStarted={processingStarted}
+          recordingCompleted={recordingCompleted} // Pass recordingCompleted state
           onToggle={handleRecordToggle}
+          onStartGeneration={handleStartGeneration} // Pass generation handler
         />
       </div>
 
@@ -512,12 +599,21 @@ const App: React.FC = () => {
       {/* Stop Recording Confirmation Popup */}
       <ConfirmationPopup
         isVisible={showStopConfirmation}
-        title="녹음 종료"
-        message="보고서를 생성하시겠습니까?"
-        confirmText="생성"
+        title="녹음 종료 확인" // Changed title
+        message="녹음을 종료하시겠습니까?" // Changed message
+        confirmText="종료" // Changed confirm text
         cancelText="취소"
-        onConfirm={handleConfirmStop}
+        onConfirm={handleConfirmStop} // Now only stops recording
         onCancel={handleCancelStop}
+      />
+
+      {/* Document Type Selection Popup */}
+      <DocumentTypeSelectionPopup
+        isVisible={showDocTypePopup}
+        selectedTypes={selectedDocTypes}
+        onSelectionChange={handleDocTypeSelectionChange}
+        onConfirm={handleConfirmGeneration}
+        onCancel={handleCancelGeneration}
       />
     </div>
   );

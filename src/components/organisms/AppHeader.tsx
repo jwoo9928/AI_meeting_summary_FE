@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Wifi, WifiOff, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose } from 'lucide-react'; // Import Wifi and Panel icons
+import { Zap, Wifi, WifiOff, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose, MessageSquare } from 'lucide-react'; // Import Wifi, Panel, and MessageSquare icons
 import { ConnectionStatus } from '../../controllers/WebsocketController'; // Import ConnectionStatus type
 
 type AppHeaderProps = {
@@ -11,10 +11,13 @@ type AppHeaderProps = {
     aiHighlightMode: boolean;
     onToggleAiHighlight: () => void;
     formatTime: (seconds: number) => string;
-    showLeftSidebar: boolean; // Add prop for left sidebar state
-    onToggleLeftSidebar: () => void; // Add handler for left sidebar
+    // showLeftSidebar: boolean; // REMOVED
+    onToggleLeftSidebar: () => void; // Keep handler for meeting list toggle
     showRightSidebar: boolean; // Add prop for right sidebar state
     onToggleRightSidebar: () => void; // Add handler for right sidebar
+    // showChatbotSidebar: boolean; // REMOVED
+    onToggleChatbotSidebar: () => void; // Keep handler for chatbot toggle
+    activeLeftSidebar: 'meetingList' | 'chatbot' | 'none'; // Add prop for active sidebar state
 };
 
 const AppHeader: React.FC<AppHeaderProps> = ({
@@ -25,10 +28,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     onToggleAiHighlight,
     formatTime,
     connectionStatus,
-    showLeftSidebar, // Destructure new props
-    onToggleLeftSidebar, // Destructure new props
-    showRightSidebar, // Destructure new props
-    onToggleRightSidebar, // Destructure new props
+    // showLeftSidebar, // REMOVED
+    onToggleLeftSidebar, // Keep handler
+    // showChatbotSidebar, // REMOVED
+    onToggleChatbotSidebar, // Keep handler
+    activeLeftSidebar, // Destructure active sidebar state
+    showRightSidebar, // Destructure right sidebar props
+    onToggleRightSidebar, // Destructure right sidebar props
 }) => {
     const renderConnectionIcon = () => {
         switch (connectionStatus) {
@@ -48,20 +54,30 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     };
 
     return (
-        <div className="bg-white border-b border-gray-200 py-3 sticky top-0 z-10 shadow-sm">
+        <div className="bg-white border-b border-gray-200 py-3 sticky top-0 z-20 shadow-sm"> {/* Increased z-index */}
             <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
                 <div className="flex items-center">
-                    {/* Left Sidebar Toggle Button */}
+                    {/* Chatbot Sidebar Toggle Button */}
+                    <button
+                        onClick={onToggleChatbotSidebar}
+                        className={`p-2 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 transition-colors mr-2 ${activeLeftSidebar === 'chatbot' ? 'bg-blue-100 text-blue-600' : ''}`}
+                        aria-label={activeLeftSidebar === 'chatbot' ? "Hide chatbot" : "Show chatbot"}
+                    >
+                        <MessageSquare size={20} />
+                    </button>
+                    {/* Meeting List Sidebar Toggle Button */}
                     <button
                         onClick={onToggleLeftSidebar}
-                        className="p-2 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 transition-colors mr-4" // Added margin-right
-                        aria-label={showLeftSidebar ? "Hide meeting list" : "Show meeting list"}
+                        className={`p-2 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 transition-colors mr-4 ${activeLeftSidebar === 'meetingList' ? 'bg-gray-200' : ''}`}
+                        aria-label={activeLeftSidebar === 'meetingList' ? "Hide meeting list" : "Show meeting list"}
                     >
-                        {showLeftSidebar ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+                        {/* Use different icons based on active state? Or just background color? */}
+                        {/* For now, just use background color to indicate active */}
+                        {activeLeftSidebar === 'meetingList' ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
                     </button>
                     <h1 className="text-xl font-semibold text-gray-900 flex items-center">
                         <span>회의 녹음 및 분석</span>
-                        {renderConnectionIcon()} {/* Render the icon */}
+                        {renderConnectionIcon()} {/* Render the connection icon */}
                     </h1>
                     {/* AI Highlight Toggle */}
                     {processingStarted && !isRecording && (

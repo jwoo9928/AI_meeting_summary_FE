@@ -8,6 +8,7 @@ interface ReportPreviewProps {
     isRecording: boolean;
     processingStarted: boolean;
     generatedHtml: string | null;
+    recordingCompleted: boolean; // Add recordingCompleted prop
 }
 
 const ReportPreview: React.FC<ReportPreviewProps> = ({
@@ -16,6 +17,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({
     isRecording,
     processingStarted,
     generatedHtml,
+    recordingCompleted, // Destructure the new prop
 }) => {
     // Ref for the container that will host the Shadow DOM
     const shadowHostRef = useRef<HTMLDivElement>(null);
@@ -63,14 +65,20 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({
             className={`bg-white rounded-2xl shadow-xl border border-gray-200 p-8 min-h-[600px] relative transition-all duration-300 ${aiHighlightMode ? 'ring-2 ring-blue-400 ring-offset-2' : ''
                 }`}
         >
-            {/* Initial Placeholder */}
+            {/* Initial Placeholder or Recording Completed Message */}
             {!isRecording && !processingStarted && !generatedHtml && (
                 <div className="flex flex-col items-center justify-center h-96 text-center">
                     <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring' }}>
                         <Users size={56} className="text-gray-400 mb-4" />
                     </motion.div>
-                    <p className="text-gray-600 text-lg font-medium mb-2">회의를 시작하려면 녹음 버튼을 누르세요.</p>
-                    <p className="text-sm text-gray-400">녹음 후 AI가 자동으로 회의 내용을 분석하고 보고서를 생성합니다.</p>
+                    {recordingCompleted ? (
+                        <p className="text-green-600 text-lg font-medium mb-2">녹음이 완료되었습니다.</p>
+                    ) : (
+                        <>
+                            <p className="text-gray-600 text-lg font-medium mb-2">회의를 시작하려면 녹음 버튼을 누르세요.</p>
+                            <p className="text-sm text-gray-400">녹음 후 AI가 자동으로 회의 내용을 분석하고 보고서를 생성합니다.</p>
+                        </>
+                    )}
                 </div>
             )}
 
