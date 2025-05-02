@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react'; // Added useEffect, useRef
 import { motion } from 'framer-motion';
 import { Users } from 'lucide-react';
 
 interface ReportPreviewProps {
-    previewRef: React.RefObject<HTMLDivElement | null>; // Correct type to match useRef(null)
+    previewRef: React.RefObject<HTMLDivElement | null>;
     aiHighlightMode: boolean;
     isRecording: boolean;
     processingStarted: boolean;
@@ -17,9 +17,49 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({
     processingStarted,
     generatedHtml,
 }) => {
+    // Ref for the container that will host the Shadow DOM
+    const shadowHostRef = useRef<HTMLDivElement>(null);
+
+    // Effect to update Shadow DOM when generatedHtml changes
+    useEffect(() => {
+        const hostElement = shadowHostRef.current;
+        if (hostElement && generatedHtml) {
+            // Ensure shadow root doesn't already exist
+            if (!hostElement.shadowRoot) {
+                hostElement.attachShadow({ mode: 'open' });
+            }
+            // Clear previous content and set new HTML
+            if (hostElement.shadowRoot) {
+                // Apply base Tailwind prose styles if needed within the shadow DOM
+                // Note: Tailwind classes won't automatically apply inside Shadow DOM
+                // unless the styles are explicitly injected or linked.
+                // For simplicity, we'll rely on styles within generatedHtml for now.
+                // If base styling is needed, we might need to link a stylesheet.
+                hostElement.shadowRoot.innerHTML = `
+                    <style>
+                    /* Basic prose styling fallback if needed, or link external CSS */
+                    /* Consider linking your main CSS or a specific one for reports */
+                    /* @import url('/path/to/your/tailwind-output.css'); */
+
+                    /* Add any essential base styles here if generatedHtml lacks them */
+                    body { /* Targeting body inside shadow dom */
+                        font-family: sans-serif;
+                        line-height: 1.6;
+                    }
+                    /* Add more base styles as required */
+                    </style>
+                    ${generatedHtml}
+                `;
+            }
+        } else if (hostElement && hostElement.shadowRoot) {
+            // Clear content if generatedHtml is null
+            hostElement.shadowRoot.innerHTML = '';
+        }
+    }, [generatedHtml]); // Rerun effect when generatedHtml changes
+
     return (
         <div
-            ref={previewRef} // Ref for scrolling
+            ref={previewRef} // Keep original ref for scrolling/external access
             className={`bg-white rounded-2xl shadow-xl border border-gray-200 p-8 min-h-[600px] relative transition-all duration-300 ${aiHighlightMode ? 'ring-2 ring-blue-400 ring-offset-2' : ''
                 }`}
         >
@@ -34,13 +74,12 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({
                 </div>
             )}
 
-            {/* Display generated HTML */}
-            {generatedHtml && (
-                <div
-                    className="prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: generatedHtml }} // Render HTML received from server
-                />
-            )}
+            {/* Container for Shadow DOM */}
+            {/* Apply prose styles here if needed for spacing/layout OUTSIDE shadow DOM */}
+            <div ref={shadowHostRef} className="prose prose-sm max-w-none">
+                {/* Content will be rendered inside Shadow DOM via useEffect */}
+            </div>
+
 
             {/* Loading/Processing Indicator */}
             {processingStarted && !generatedHtml && (

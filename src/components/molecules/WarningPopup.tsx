@@ -12,7 +12,7 @@ const WarningPopup: React.FC<WarningPopupProps> = ({ message, onClose, isVisible
     }
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+        <div className="fixed inset-0 bg-opacity-30 flex justify-center items-center z-50 backdrop-blur-sm"> {/* Reduced opacity */}
             <div className="bg-white p-6 rounded-lg shadow-lg text-center max-w-sm">
                 <h3 className="text-lg font-semibold text-yellow-500 mb-2">Warning</h3>
                 <p className="mb-4">{message}</p>

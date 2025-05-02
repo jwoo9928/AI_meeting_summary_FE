@@ -28,7 +28,8 @@ const MeetingListSidebar: React.FC<MeetingListSidebarProps> = ({
     onDeleteMeeting,
 }) => {
     return (
-        <div className="w-72 bg-white border-r border-gray-200 p-4 flex flex-col shadow-sm">
+        // Add h-full here to ensure the white background fills the height
+        <div className="w-72 h-full bg-white border-r border-gray-200 p-4 flex flex-col shadow-sm">
             <h2 className="text-xl font-semibold text-gray-800 mb-5 px-2">회의 목록</h2>
             <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {meetings.map((meeting) => (

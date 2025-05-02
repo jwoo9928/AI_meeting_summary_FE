@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'; // useCallback 추가
-// Removed unused imports: Check, Users, Award, motion, AnimatePresence
-// Removed MeetingListItem import
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion'; // Import motion and AnimatePresence
 import MeetingListSidebar from './components/organisms/MeetingListSidebar'; // Import the new organism
 import AppHeader from './components/organisms/AppHeader'; // Import AppHeader
 import ProcessStepsBar from './components/organisms/ProcessStepsBar'; // Import ProcessStepsBar
@@ -8,10 +7,12 @@ import RightSidebar from './components/organisms/RightSidebar'; // Import RightS
 import RealtimeVisualization from './components/organisms/RealtimeVisualization'; // Import RealtimeVisualization
 import WebsocketController, { ConnectionStatus } from './controllers/WebsocketController'; // Import ConnectionStatus
 import WarningPopup from './components/molecules/WarningPopup'; // Import WarningPopup
+import ConfirmationPopup from './components/molecules/ConfirmationPopup'; // Import ConfirmationPopup
 import RecordButton from './components/molecules/RecordButton'; // Import RecordButton
 import AIInsightsPanel from './components/organisms/AIInsightsPanel'; // Import AIInsightsPanel
 import CurrentStepDisplay from './components/organisms/CurrentStepDisplay'; // Import CurrentStepDisplay
 import ReportPreview from './components/organisms/ReportPreview'; // Import ReportPreview
+
 
 type Meeting = {
   id: string;
@@ -51,7 +52,7 @@ const App: React.FC = () => {
   // const [isConnected, setIsConnected] = useState(false); // REMOVED - Handled by controller callbacks
   const [processingStarted, setProcessingStarted] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [showDocumentPanel, setShowDocumentPanel] = useState(false);
+  const [showDocumentPanel, setShowDocumentPanel] = useState(false); // Tracks if documents *data* is available
   const [meetings, setMeetings] = useState<Meeting[]>([
     {
       id: '1',
@@ -92,6 +93,8 @@ const App: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected'); // Add connection status state
   const [warningMessage, setWarningMessage] = useState<string>(''); // Add warning message state
   const [showWarning, setShowWarning] = useState<boolean>(false); // Add warning visibility state
+  const [showStopConfirmation, setShowStopConfirmation] = useState<boolean>(false); // State for stop confirmation popup
+  const [showLeftSidebar, setShowLeftSidebar] = useState(true); // State for Left Sidebar visibility
   // const [PDFGenerating, setPDFGenerating] = useState(false); // REMOVED - State seems unused in App.tsx
 
   // 단계 정의 수정 (5단계로 복구)
@@ -201,20 +204,9 @@ const App: React.FC = () => {
             if (!finalStepCompleted) {
               console.log('Resetting state due to unexpected disconnect.');
               setProcessingStarted(false);
-              // Optionally reset visual state fully
-              // return serverSteps.map(step => ({ ...step, status: 'pending' }));
             }
             return prevSteps; // Keep current steps if final step was reached
           });
-          // setCurrentStep(prevStep => { // Check currentStep directly
-          //   if (prevStep < serverSteps.length) { // Use serverSteps.length for flexibility
-          //     setProcessingStarted(false);
-          //     // Optionally reset steps visual state
-          //     // setProcessSteps(serverSteps.map(step => ({ ...step, status: 'pending' })));
-          //     // return 0;
-          //   }
-          //   return prevStep;
-          // });
         },
         onError: (error: Event) => {
           console.error('WebSocket Error (via Controller):', error);
@@ -270,10 +262,8 @@ const App: React.FC = () => {
 
   const handleRecordToggle = () => {
     if (isRecording) {
-      // Stop recording: Set processing flag, WebSocket connection will start via useEffect
-      setIsRecording(false);
-      setProcessingStarted(true);
-      // startProcessingSteps(); // REMOVED
+      // Stop recording: Show confirmation popup instead of immediate stop
+      setShowStopConfirmation(true);
     } else {
       // Start recording: Reset everything
       setIsRecording(true);
@@ -283,6 +273,7 @@ const App: React.FC = () => {
       setCurrentStep(0);
       // setPDFGenerating(false); // REMOVED
       setShowDocumentPanel(false);
+      setShowLeftSidebar(false);
       setShowAIInsights(false);
       setKeyInsights([]);
       setDocuments([]); // Clear previous documents
@@ -294,6 +285,18 @@ const App: React.FC = () => {
       // Close WebSocket connection using the controller
       WebsocketController.disconnect();
     }
+  };
+
+  // Handler for confirming stop recording and report generation
+  const handleConfirmStop = () => {
+    setIsRecording(false);
+    setProcessingStarted(true);
+    setShowStopConfirmation(false); // Close the popup
+  };
+
+  // Handler for canceling stop recording
+  const handleCancelStop = () => {
+    setShowStopConfirmation(false); // Close the popup
   };
 
   // REMOVED startProcessingSteps function entirely
@@ -358,21 +361,51 @@ const App: React.FC = () => {
     // Optionally re-select the current meeting or default
   };
 
+  // Toggle Right Sidebar Visibility
+  const handleToggleRightSidebar = () => {
+    setShowDocumentPanel(prev => !prev);
+  };
+
+  // Toggle Left Sidebar Visibility
+  const handleToggleLeftSidebar = () => {
+    setShowLeftSidebar(prev => !prev);
+  };
+
+  // Determine if the final step is completed
+  const isProcessComplete = processSteps[serverSteps.length - 1]?.status === 'completed';
 
   return (
     <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
-      {/* Use MeetingListSidebar Organism */}
-      <MeetingListSidebar
-        meetings={meetings}
-        menuOpenId={menuOpen}
-        onSelectMeeting={handleMeetingSelect}
-        onToggleMenu={handleMenuToggle}
-        onDeleteMeeting={handleDeleteMeeting}
-      />
+      {/* Left Sidebar with Animation */}
+      <AnimatePresence>
+        {showLeftSidebar && (
+          <motion.div
+            initial={{ x: '-100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '-100%', opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="fixed top-0 left-0 h-full z-30" // Use fixed positioning for overlap effect if needed, or adjust layout
+          // Or keep relative positioning if main content margin handles it:
+          // className="h-full" // Ensure it takes full height if not fixed
+          >
+            {/* Use MeetingListSidebar Organism */}
+            <MeetingListSidebar
+              meetings={meetings}
+              menuOpenId={menuOpen}
+              onSelectMeeting={handleMeetingSelect}
+              onToggleMenu={handleMenuToggle}
+              onDeleteMeeting={handleDeleteMeeting}
+            // Assuming MeetingListSidebar has a fixed width, e.g., w-64
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content Area */}
-      <div className={`flex-1 flex flex-col overflow-hidden relative transition-all duration-300 ${showDocumentPanel ? 'mr-72' : ''}`}>
-        {/* Use AppHeader Organism - Pass connectionStatus */}
+      {/* Adjust margin based on both sidebars visibility */}
+      {/* MeetingListSidebar width is w-72 (288px) and RightSidebar width is w-72 (288px) */}
+      <div className={`flex-1 flex flex-col overflow-hidden relative transition-all duration-300 ease-in-out ${showLeftSidebar ? 'ml-72' : 'ml-0'} ${showDocumentPanel ? 'mr-72' : 'mr-0'}`}>
+        {/* Use AppHeader Organism - Pass connectionStatus and sidebar toggles */}
         <AppHeader
           isRecording={isRecording}
           recordingTime={recordingTime}
@@ -381,10 +414,24 @@ const App: React.FC = () => {
           aiHighlightMode={aiHighlightMode}
           onToggleAiHighlight={() => setAiHighlightMode(!aiHighlightMode)}
           formatTime={formatTime}
+          showLeftSidebar={showLeftSidebar} // Pass left sidebar state
+          onToggleLeftSidebar={handleToggleLeftSidebar} // Pass left sidebar handler
+          showRightSidebar={showDocumentPanel} // Pass right sidebar state for button icon
+          onToggleRightSidebar={handleToggleRightSidebar} // Pass right sidebar handler
         />
 
-        {/* Use ProcessStepsBar Organism */}
-        <ProcessStepsBar processSteps={processSteps} />
+        {/* Conditionally render ProcessStepsBar with animation */}
+        <AnimatePresence>
+          {!isProcessComplete && (
+            <motion.div
+              initial={{ opacity: 1, height: 'auto' }} // Start visible and with auto height
+              exit={{ opacity: 0, height: 0 }} // Fade out and collapse height
+              transition={{ duration: 0.3 }} // Animation duration
+            >
+              <ProcessStepsBar processSteps={processSteps} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Main Scrollable Area */}
         <div className="flex-1 p-6 lg:p-8 overflow-auto bg-gray-50">
@@ -398,15 +445,24 @@ const App: React.FC = () => {
                 isRecording={isRecording} // Pass isRecording state
               />
             )}
-
-            {/* Use CurrentStepDisplay Component */}
-            <CurrentStepDisplay
-              processingStarted={processingStarted}
-              isRecording={isRecording}
-              currentStep={currentStep}
-              processSteps={processSteps}
-              serverStepsLength={serverSteps.length}
-            />
+            {/* Conditionally render CurrentStepDisplay with animation */}
+            <AnimatePresence>
+              {!isProcessComplete && (
+                <motion.div
+                  initial={{ opacity: 1 }} // Start visible
+                  exit={{ opacity: 0 }} // Fade out
+                  transition={{ duration: 0.3 }} // Animation duration
+                >
+                  <CurrentStepDisplay
+                    processingStarted={processingStarted}
+                    isRecording={isRecording}
+                    currentStep={currentStep}
+                    processSteps={processSteps}
+                    serverStepsLength={serverSteps.length}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Use AIInsightsPanel Component */}
             <AIInsightsPanel
@@ -435,7 +491,8 @@ const App: React.FC = () => {
         />
       </div>
 
-      {/* Use RightSidebar Organism */}
+      {/* Conditionally render RightSidebar based on actualShowRightSidebar */}
+
       <RightSidebar
         showDocumentPanel={showDocumentPanel}
         documents={documents}
@@ -443,11 +500,24 @@ const App: React.FC = () => {
         getDocumentNodeSize={getDocumentNodeSize}
       />
 
+      {/* Removed duplicated closing tags */}
+
       {/* Warning Popup */}
       <WarningPopup
         message={warningMessage}
         isVisible={showWarning}
         onClose={() => setShowWarning(false)}
+      />
+
+      {/* Stop Recording Confirmation Popup */}
+      <ConfirmationPopup
+        isVisible={showStopConfirmation}
+        title="녹음 종료"
+        message="보고서를 생성하시겠습니까?"
+        confirmText="생성"
+        cancelText="취소"
+        onConfirm={handleConfirmStop}
+        onCancel={handleCancelStop}
       />
     </div>
   );
