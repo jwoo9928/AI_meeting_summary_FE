@@ -13,15 +13,25 @@ type DocumentListItemProps = {
 };
 
 const DocumentListItem: React.FC<DocumentListItemProps> = ({ doc, index }) => {
-    // Function to get color based on document type
-    const getTypeColorClasses = (type: string) => {
-        switch (type) {
-            case 'marketing': return 'bg-red-50 text-red-500';
-            case 'product': return 'bg-blue-50 text-blue-500';
-            case 'finance': return 'bg-green-50 text-green-500';
-            default: return 'bg-gray-100 text-gray-500';
+    // Function to get colors based on keywords in the title, matching the image
+    const getStyleByTypeKeywords = (type: string): { bg: string; text: string } => {
+        const lowerTitle = type?.toLowerCase() || '';
+        if (lowerTitle.includes('pdf')) {
+            return { bg: 'bg-red-50', text: 'text-red-500' }; // Red for "마케팅"
+        } else if (lowerTitle.includes('docs')) {
+            return { bg: 'bg-blue-50', text: 'text-blue-500' }; // Blue for "제품"
+        } else if (lowerTitle.includes('excel')) {
+            return { bg: 'bg-green-50', text: 'text-green-500' }; // Green for "예산"
+        } else if (lowerTitle.includes('txt')) {
+            return { bg: 'bg-gray-100', text: 'text-gray-500' }; // Gray for "경쟁사"
+        } else {
+            // Fallback based on extension if no keyword matches? Or just default gray? Let's default to gray.
+            // We could add extension logic here as a secondary check if needed.
+            return { bg: 'bg-gray-100', text: 'text-gray-500' }; // Default Gray
         }
     };
+
+    const colors = getStyleByTypeKeywords(doc.type);
 
     return (
         <motion.div
@@ -33,24 +43,31 @@ const DocumentListItem: React.FC<DocumentListItemProps> = ({ doc, index }) => {
             className="rounded-xl p-3 bg-white hover:bg-gray-50 border border-gray-200 transition-colors cursor-pointer shadow-sm"
         >
             <div className="flex items-center space-x-3">
-                <div className={`p-2 rounded-lg ${getTypeColorClasses(doc.type)}`}>
-                    <FileText size={18} />
+                {/* Apply dynamic background and icon color based on type */}
+                <div className={`p-2 rounded-lg ${colors.bg}`}>
+                    <FileText size={18} className={colors.text} />
                 </div>
-                <div className="flex-1">
-                    <h3 className="font-medium text-gray-800 text-sm truncate">{doc.title}</h3>
+                {/* Add min-w-0 to allow truncation within flex container */}
+                <div className="flex-1 min-w-0">
+                    {/* Display title and type separately for targeted truncation */}
+                    <h3 className="font-medium text-gray-800 text-sm flex"> {/* Use flex to keep spans inline */}
+                        <span className="truncate">{doc.title}</span>
+                        {/* Append type, ensuring it's not truncated */}
+                        {doc.type && <span className="flex-shrink-0">.{doc.type}</span>}
+                    </h3>
                     {/* Conditionally render date */}
                     {doc.date && (
-                        <p className="text-xs text-gray-500">{format(doc.date, 'yyyy.MM.dd', { locale: ko })}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{format(doc.date, 'yyyy.MM.dd', { locale: ko })}</p>
                     )}
                 </div>
                 {/* Score Indicator - Use score instead of relevanceScore */}
-                {doc.score !== undefined && ( // Check if score exists
+                {doc.score !== undefined && ( // Check if score exists using !== undefined
                     <div className="flex flex-col items-center ml-2">
-                        {/* Display score, maybe formatted differently if needed */}
-                        <div className="text-xs font-semibold text-blue-600">{doc.score.toFixed(2)}</div>
-                        {/* Optional: Adjust progress bar logic if needed, e.g., scale score if it's not 0-1 */}
-                        <div className="w-8 h-1 bg-gray-200 rounded-full mt-0.5">
-                            <div className="h-1 bg-blue-500 rounded-full" style={{ width: `${Math.min(doc.score * 100, 100)}%` }}></div> {/* Assuming score is 0-1 */}
+                        {/* Display score as rounded whole number */}
+                        <div className="text-sm font-semibold text-blue-600">{Math.round(doc.score)}</div>
+                        {/* Assume score is 0-100 for progress bar width */}
+                        <div className="w-10 h-1.5 bg-gray-200 rounded-full mt-1"> {/* Slightly larger bar */}
+                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(Math.max(doc.score || 0, 0), 100)}%` }}></div>
                         </div>
                     </div>
                 )}
