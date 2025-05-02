@@ -1,16 +1,10 @@
 import React from 'react';
-import { motion } from 'framer-motion'; // Removed AnimatePresence
+import { motion } from 'framer-motion';
 import { RefreshCw, Share2, FileText } from 'lucide-react';
 import DocumentList from './DocumentList'; // Import the DocumentList organism
+import { Document } from '../../App'; // Import Document type from App.tsx
 
-// Define Document type (can be moved to a shared types file later)
-type Document = {
-    id: string;
-    title: string;
-    date: Date;
-    type: string;
-    relevanceScore?: number;
-};
+// REMOVED local Document type definition
 
 type RightSidebarProps = {
     showDocumentPanel: boolean;
@@ -68,14 +62,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                         y: (Math.random() - 0.5) * 50,
                                     }}
                                     transition={{ delay: 0.5 + index * 0.1, type: 'spring', stiffness: 100 }}
-                                    className={`absolute rounded-full border-2 border-purple-300 flex items-center justify-center ${doc.type === 'marketing' ? 'bg-red-200' : doc.type === 'product' ? 'bg-blue-200' : doc.type === 'finance' ? 'bg-green-200' : 'bg-gray-200'}`}
+                                    className={`absolute rounded-full border-2 border-purple-300 flex items-center justify-center ${doc.type === 'pdf' ? 'bg-red-200' : doc.type === 'docs' ? 'bg-blue-200' : 'bg-gray-200'}`} // Adjusted types based on server example
                                     style={{
-                                        width: `${getDocumentNodeSize(doc.relevanceScore)}px`,
-                                        height: `${getDocumentNodeSize(doc.relevanceScore)}px`,
+                                        width: `${getDocumentNodeSize(doc.score)}px`, // Use score
+                                        height: `${getDocumentNodeSize(doc.score)}px`, // Use score
                                     }}
-                                    title={`${doc.title} (Relevance: ${Math.round((doc.relevanceScore || 0) * 100)}%)`}
+                                    title={`${doc.title} (Score: ${doc.score?.toFixed(2) ?? 'N/A'})`} // Use score
                                 >
-                                    <FileText size={getDocumentNodeSize(doc.relevanceScore) * 0.4} className="text-purple-600 opacity-70" />
+                                    <FileText size={getDocumentNodeSize(doc.score) * 0.4} className="text-purple-600 opacity-70" />
                                 </motion.div>
                             ))}
                         </div>

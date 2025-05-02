@@ -1,10 +1,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Zap } from 'lucide-react';
+import { Zap, Wifi, WifiOff } from 'lucide-react'; // Import Wifi icons
+import { ConnectionStatus } from '../../controllers/WebsocketController'; // Import ConnectionStatus type
 
 type AppHeaderProps = {
     isRecording: boolean;
     recordingTime: number;
+    connectionStatus: ConnectionStatus; // Add connectionStatus prop
     processingStarted: boolean;
     aiHighlightMode: boolean;
     onToggleAiHighlight: () => void;
@@ -18,12 +20,33 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     aiHighlightMode,
     onToggleAiHighlight,
     formatTime,
+    connectionStatus, // Destructure connectionStatus
 }) => {
+    const renderConnectionIcon = () => {
+        switch (connectionStatus) {
+            case 'connected':
+                // Wrap icon in a span with title for tooltip
+                return <span title="WebSocket Connected"><Wifi size={18} className="text-green-500 ml-2" /></span>;
+            case 'connecting':
+                // Wrap icon in a span with title for tooltip
+                return <span title="WebSocket Connecting"><Wifi size={18} className="text-yellow-500 ml-2 animate-pulse" /></span>;
+            case 'error':
+            case 'disconnected':
+                // Wrap icon in a span with title for tooltip
+                return <span title="WebSocket Disconnected/Error"><WifiOff size={18} className="text-red-500 ml-2" /></span>;
+            default:
+                return null;
+        }
+    };
+
     return (
         <div className="bg-white border-b border-gray-200 py-3 sticky top-0 z-10 shadow-sm">
             <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
                 <div className="flex items-center">
-                    <h1 className="text-xl font-semibold text-gray-900">회의 녹음 및 분석</h1>
+                    <h1 className="text-xl font-semibold text-gray-900 flex items-center">
+                        <span>회의 녹음 및 분석</span>
+                        {renderConnectionIcon()} {/* Render the icon */}
+                    </h1>
                     {/* AI Highlight Toggle */}
                     {processingStarted && !isRecording && (
                         <motion.button

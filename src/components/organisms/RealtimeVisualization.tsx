@@ -1,16 +1,79 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react'; // useEffect, useRef 추가
 import { motion, AnimatePresence } from 'framer-motion';
 import { BrainCircuit, Sparkles, Zap } from 'lucide-react';
 
 type RealtimeVisualizationProps = {
     canvasRef: React.RefObject<HTMLCanvasElement>;
     liveKeywords: string[];
+    isRecording: boolean; // isRecording prop 추가
 };
 
 const RealtimeVisualization: React.FC<RealtimeVisualizationProps> = ({
     canvasRef,
     liveKeywords,
+    isRecording, // isRecording prop 받기
 }) => {
+    const animationFrameRef = useRef<number | null>(null); // 애니메이션 프레임 ref 추가
+
+    // 음성 파형 시각화 효과 (App.tsx에서 이동)
+    useEffect(() => {
+        if (isRecording && canvasRef.current) {
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            const renderWaveform = () => {
+                if (!isRecording || !canvasRef.current) return; // Stop animation if not recording or canvas unmounted
+
+                const width = canvas.width;
+                const height = canvas.height;
+                ctx.clearRect(0, 0, width, height);
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.7)'; // Blue color
+
+                const bars = 50; // Number of bars
+                const barWidth = width / bars - 2; // Width of each bar with spacing
+                const maxBarHeight = height * 0.8; // Max height relative to canvas height
+                const centerY = height / 2;
+
+                for (let i = 0; i < bars; i++) {
+                    // Simulate varying amplitude
+                    const amplitude = Math.random();
+                    const barHeight = amplitude * maxBarHeight + height * 0.1; // Add a base height
+                    const x = i * (barWidth + 2);
+                    const y = centerY - barHeight / 2;
+
+                    ctx.fillRect(x, y, barWidth, barHeight);
+                }
+
+                animationFrameRef.current = requestAnimationFrame(renderWaveform);
+            };
+
+            renderWaveform(); // Start the animation loop
+
+            return () => {
+                // Cleanup: cancel the animation frame when effect unmounts or recording stops
+                if (animationFrameRef.current) {
+                    cancelAnimationFrame(animationFrameRef.current);
+                }
+                // Clear canvas on stop only if canvas still exists
+                if (canvasRef.current) {
+                    const currentCtx = canvasRef.current.getContext('2d');
+                    currentCtx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                }
+            };
+        } else {
+            // Ensure animation stops if isRecording becomes false
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+            // Clear canvas if it exists and recording stops
+            if (canvasRef.current) {
+                const ctx = canvasRef.current.getContext('2d');
+                ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            }
+        }
+    }, [isRecording, canvasRef]); // Rerun effect when isRecording or canvasRef changes
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}

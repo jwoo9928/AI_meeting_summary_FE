@@ -3,15 +3,9 @@ import { motion } from 'framer-motion';
 import { FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { Document } from '../../App'; // Import Document type from App.tsx
 
-// Define Document type (can be moved to a shared types file later)
-type Document = {
-    id: string;
-    title: string;
-    date: Date;
-    type: string;
-    relevanceScore?: number;
-};
+// REMOVED local Document type definition
 
 type DocumentListItemProps = {
     doc: Document;
@@ -44,14 +38,19 @@ const DocumentListItem: React.FC<DocumentListItemProps> = ({ doc, index }) => {
                 </div>
                 <div className="flex-1">
                     <h3 className="font-medium text-gray-800 text-sm truncate">{doc.title}</h3>
-                    <p className="text-xs text-gray-500">{format(doc.date, 'yyyy.MM.dd', { locale: ko })}</p>
+                    {/* Conditionally render date */}
+                    {doc.date && (
+                        <p className="text-xs text-gray-500">{format(doc.date, 'yyyy.MM.dd', { locale: ko })}</p>
+                    )}
                 </div>
-                {/* Relevance Score Indicator */}
-                {doc.relevanceScore && (
+                {/* Score Indicator - Use score instead of relevanceScore */}
+                {doc.score !== undefined && ( // Check if score exists
                     <div className="flex flex-col items-center ml-2">
-                        <div className="text-xs font-semibold text-blue-600">{Math.round(doc.relevanceScore * 100)}</div>
+                        {/* Display score, maybe formatted differently if needed */}
+                        <div className="text-xs font-semibold text-blue-600">{doc.score.toFixed(2)}</div>
+                        {/* Optional: Adjust progress bar logic if needed, e.g., scale score if it's not 0-1 */}
                         <div className="w-8 h-1 bg-gray-200 rounded-full mt-0.5">
-                            <div className="h-1 bg-blue-500 rounded-full" style={{ width: `${doc.relevanceScore * 100}%` }}></div>
+                            <div className="h-1 bg-blue-500 rounded-full" style={{ width: `${Math.min(doc.score * 100, 100)}%` }}></div> {/* Assuming score is 0-1 */}
                         </div>
                     </div>
                 )}

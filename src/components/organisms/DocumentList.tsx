@@ -1,15 +1,9 @@
 import React from 'react';
-import { AnimatePresence } from 'framer-motion'; // Removed motion
+import { AnimatePresence } from 'framer-motion';
 import DocumentListItem from '../molecules/DocumentListItem'; // Import the molecule
+import { Document } from '../../App'; // Import Document type from App.tsx
 
-// Define Document type (can be moved to a shared types file later)
-type Document = {
-    id: string;
-    title: string;
-    date: Date;
-    type: string;
-    relevanceScore?: number;
-};
+// REMOVED local Document type definition
 
 type DocumentListProps = {
     documents: Document[];
