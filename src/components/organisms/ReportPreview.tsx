@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react'; // Added useEffect, useRef
+import React, { useEffect, useRef, useState } from 'react'; // Added useState
 import { motion } from 'framer-motion';
-import { Users } from 'lucide-react';
+import { Users, UploadCloud } from 'lucide-react'; // Added UploadCloud
 
 interface ReportPreviewProps {
     previewRef: React.RefObject<HTMLDivElement | null>;
@@ -8,7 +8,9 @@ interface ReportPreviewProps {
     isRecording: boolean;
     processingStarted: boolean;
     generatedHtml: string | null;
-    recordingCompleted: boolean; // Add recordingCompleted prop
+    // recordingCompleted: boolean; // No longer needed here, completionMessage handles its display purpose
+    onFileDrop: (file: File) => void;
+    completionMessage: string | null; // New prop for dynamic completion message
 }
 
 const ReportPreview: React.FC<ReportPreviewProps> = ({
@@ -17,10 +19,42 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({
     isRecording,
     processingStarted,
     generatedHtml,
-    recordingCompleted, // Destructure the new prop
+    // recordingCompleted, // Removed
+    onFileDrop,
+    completionMessage, // Destructure new prop
 }) => {
-    // Ref for the container that will host the Shadow DOM
     const shadowHostRef = useRef<HTMLDivElement>(null);
+    const [dragOver, setDragOver] = useState(false);
+
+    const handleDragOverEvent = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isRecording && !processingStarted && !generatedHtml) { // Only allow drag over if in initial state
+            setDragOver(true);
+        }
+    };
+
+    const handleDragLeaveEvent = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setDragOver(false);
+    };
+
+    const handleDropEvent = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setDragOver(false);
+        if (!isRecording && !processingStarted && !generatedHtml) { // Only process drop if in initial state
+            if (event.dataTransfer.files && event.dataTransfer.files[0]) {
+                const file = event.dataTransfer.files[0];
+                if (file.type.startsWith('audio/')) {
+                    onFileDrop(file);
+                } else {
+                    alert('음성 파일만 업로드할 수 있습니다. (예: mp3, wav, m4a)');
+                }
+            }
+        }
+    };
 
     // Effect to update Shadow DOM when generatedHtml changes
     useEffect(() => {
@@ -62,32 +96,52 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({
     return (
         <div
             ref={previewRef} // Keep original ref for scrolling/external access
-            className={`bg-white rounded-2xl shadow-xl border border-gray-200 p-8 min-h-[600px] relative transition-all duration-300 ${aiHighlightMode ? 'ring-2 ring-blue-400 ring-offset-2' : ''
-                }`}
+            className={`bg-white rounded-2xl shadow-xl border border-gray-200 p-8 min-h-[600px] relative transition-all duration-300 
+                ${aiHighlightMode ? 'ring-2 ring-blue-400 ring-offset-2' : ''}
+                ${dragOver ? 'border-blue-500 bg-blue-50 dark:bg-slate-700' : 'border-gray-200'}`} // Visual feedback for dragOver
+            onDragOver={handleDragOverEvent}
+            onDragLeave={handleDragLeaveEvent}
+            onDrop={handleDropEvent}
         >
-            {/* Initial Placeholder or Recording Completed Message */}
+            {/* Initial Placeholder or Recording Completed Message - Now also the drop zone */}
             {!isRecording && !processingStarted && !generatedHtml && (
-                <div className="flex flex-col items-center justify-center h-96 text-center">
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring' }}>
-                        <Users size={56} className="text-gray-400 mb-4" />
-                    </motion.div>
-                    {recordingCompleted ? (
-                        <p className="text-green-600 text-lg font-medium mb-2">녹음이 완료되었습니다.</p>
-                    ) : (
+                <div className="flex flex-col items-center justify-center h-full min-h-[calc(600px-4rem)] text-center cursor-default"> {/* Adjusted height and cursor */}
+                    {dragOver ? (
                         <>
+                            <UploadCloud size={64} className="text-blue-500 dark:text-blue-400 mb-4" />
+                            <p className="text-xl font-semibold text-blue-600 dark:text-blue-300">
+                                파일을 놓아 업로드하세요.
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                음성 파일 (mp3, wav, m4a 등)을 여기에 드롭하세요.
+                            </p>
+                        </>
+                    ) : completionMessage ? ( // Check completionMessage first
+                        <>
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring' }}>
+                                <Users size={56} className="text-gray-400 mb-4" />
+                            </motion.div>
+                            <p className="text-green-600 text-lg font-medium mb-2">{completionMessage}</p>
+                            <p className="text-sm text-gray-400">문서 생성 버튼을 눌러 계속 진행하세요.</p>
+                        </>
+                    ) : ( // Fallback to initial message if no completionMessage (and not dragging)
+                        <>
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring' }}>
+                                <Users size={56} className="text-gray-400 mb-4" />
+                            </motion.div>
                             <p className="text-gray-600 text-lg font-medium mb-2">회의를 시작하려면 녹음 버튼을 누르세요.</p>
-                            <p className="text-sm text-gray-400">녹음 후 AI가 자동으로 회의 내용을 분석하고 보고서를 생성합니다.</p>
+                            <p className="text-sm text-gray-400">또는 음성 파일을 이 곳에 드래그 앤 드롭하여 바로 시작할 수 있습니다.</p>
                         </>
                     )}
                 </div>
             )}
 
-            {/* Container for Shadow DOM */}
-            {/* Apply prose styles here if needed for spacing/layout OUTSIDE shadow DOM */}
-            <div ref={shadowHostRef} className="prose prose-sm max-w-none">
-                {/* Content will be rendered inside Shadow DOM via useEffect */}
-            </div>
-
+            {/* Container for Shadow DOM - Only render if HTML is present */}
+            {generatedHtml && (
+                <div ref={shadowHostRef} className="prose prose-sm max-w-none">
+                    {/* Content will be rendered inside Shadow DOM via useEffect */}
+                </div>
+            )}
 
             {/* Loading/Processing Indicator */}
             {processingStarted && !generatedHtml && (

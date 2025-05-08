@@ -48,8 +48,8 @@ class WebsocketController {
     private static instance: WebsocketController | null = null;
     private ws: WebSocket | null = null;
     private callbacks: UpdateCallbacks | null = null;
-    private url: string = 'ws://localhost:8000/ws/dummy'; // Updated URL based on server code
-    private connectionStatus: ConnectionStatus = 'disconnected'; // Added status state
+    private url: string = 'ws://localhost:8000/ws'; // Corrected WebSocket endpoint for FastAPI
+    private connectionStatus: ConnectionStatus = 'disconnected';
 
     private constructor() { }
 
@@ -85,12 +85,10 @@ class WebsocketController {
         this.ws = new WebSocket(this.url);
 
         this.ws.onopen = () => {
-            console.log('WebSocket Connected');
-            this.updateStatus('connected'); // Set status to connected
+            console.log('WebSocket Connected to', this.url);
+            this.updateStatus('connected');
+            // App.tsx's onOpen callback will now handle sending initial data
             this.callbacks?.onOpen();
-            // Don't start the first step visually here, wait for audio data
-            // this.callbacks?.onStepUpdate(1, 'processing');
-            // this.callbacks?.onSetCurrentStep(1);
         };
 
         this.ws.onmessage = (event) => {
@@ -134,39 +132,82 @@ class WebsocketController {
 
     // --- NEW METHOD ---
     /**
-     * Sends audio data (Blob or ArrayBuffer) over the WebSocket connection.
-     * @param audioData The audio data to send.
-     * @returns True if the data was sent, false otherwise (e.g., not connected).
+     * Sends metadata (as JSON string) and then audio data (Blob) over the WebSocket.
+     * @param metadata An object containing meeting information.
+     * @param audioData The audio data Blob.
+     * @returns True if both metadata and audio data were sent successfully, false otherwise.
      */
-    public sendAudioData(audioData: Blob): boolean {
-        if (this.isConnected() && this.ws) {
-            console.log('Sending audio data...');
-            try {
-                this.ws.send(audioData);
-                console.log('Audio data sent successfully.');
-                // Visually start the first step after sending data
-                if (this.callbacks) {
-                    this.callbacks.onStepUpdate(1, 'processing');
-                    this.callbacks.onSetCurrentStep(1);
-                }
-                return true;
-            } catch (error) {
-                console.error('Error sending audio data:', error);
-                this.updateStatus('error');
-                this.callbacks?.onError(new ErrorEvent('senderror', { error }));
-                return false;
+    public async sendMeetingData(metadata: object, audioData: Blob): Promise<boolean> {
+        if (!this.isConnected() || !this.ws) {
+            console.warn('Cannot send meeting data: WebSocket is not connected.');
+            return false;
+        }
+
+        try {
+            // 1. Send metadata as JSON string
+            console.log('[WebsocketController] Preparing metadata:', metadata); // Log the object itself
+            const metadataStr = JSON.stringify(metadata);
+            console.log('[WebsocketController] Sending metadata string:', metadataStr);
+            this.ws.send(metadataStr);
+            console.log('[WebsocketController] Metadata sent successfully.');
+
+            // Optional: Wait for a brief moment or an ack if server sends one, though not typical for this step.
+            // await new Promise(resolve => setTimeout(resolve, 100)); 
+
+            // 2. Send audio data
+            console.log('[WebsocketController] Sending audio data:', audioData);
+            this.ws.send(audioData);
+            console.log('[WebsocketController] Audio data sent successfully.');
+
+            // Visually start the first step after sending data
+            if (this.callbacks) {
+                this.callbacks.onStepUpdate(1, 'processing');
+                this.callbacks.onSetCurrentStep(1);
             }
-        } else {
-            console.warn('Cannot send audio data: WebSocket is not connected.');
+            return true;
+
+        } catch (error) {
+            console.error('Error sending meeting data:', error);
+            this.updateStatus('error');
+            if (this.callbacks) {
+                // Ensure error is an Event instance
+                const errorEvent = error instanceof Event ? error : new ErrorEvent('senderror', { error });
+                this.callbacks.onError(errorEvent);
+            }
             return false;
         }
     }
-    // --- END NEW METHOD ---
-
 
     private handleMessage(message: string): void {
         if (!this.callbacks) return;
         console.log("Handling WebSocket message:", message);
+
+        // Check for initial error message from server if metadata was missing
+        if (message.startsWith("오류: meeting_info가 메타데이터에 제공되지 않았습니다.")) {
+            console.error("Server error due to missing meeting_info:", message);
+            this.updateStatus('error');
+            if (this.callbacks) {
+                this.callbacks.onError(new ErrorEvent('servererror', { message }));
+            }
+            this.disconnect(); // Close connection as server intends to
+            return;
+        }
+
+        // Check for other generic error messages from server
+        if (message.toLowerCase().startsWith("error:") || message.startsWith("오류:") || message.startsWith("처리 중 오류 발생:")) {
+            console.error("Received error message from server:", message);
+            this.updateStatus('error');
+            if (this.callbacks) {
+                // Pass a generic error event, the message itself is the detail
+                this.callbacks.onError(new ErrorEvent('servererror', { message }));
+            }
+            // Optionally disconnect if server errors are usually fatal
+            // this.disconnect(); 
+            return;
+        }
+
+
+        // Proceed with normal message handling if no initial error
         try {
             // Updated logic to handle messages starting with step numbers directly
             if (message.startsWith("1단계 완료")) {

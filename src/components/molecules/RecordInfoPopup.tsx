@@ -4,12 +4,14 @@ interface RecordInfoPopupProps {
     onConfirm: (participants: number, purpose: string, title: string) => void;
     onCancel: () => void;
     isVisible: boolean;
+    confirmButtonText?: string; // New optional prop
 }
 
 const RecordInfoPopup: React.FC<RecordInfoPopupProps> = ({
     onConfirm,
     onCancel,
     isVisible,
+    confirmButtonText, // Destructure new prop
 }) => {
     const [participants, setParticipants] = useState<number>(1);
     const [purpose, setPurpose] = useState<string>('');
@@ -76,7 +78,7 @@ const RecordInfoPopup: React.FC<RecordInfoPopupProps> = ({
                         className="px-5 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
                         disabled={!purpose.trim() || !title.trim()}
                     >
-                        녹음 시작
+                        {confirmButtonText || '정보 저장'}
                     </button>
                 </div>
             </div>

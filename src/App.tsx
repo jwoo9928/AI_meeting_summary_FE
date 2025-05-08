@@ -14,6 +14,7 @@ import CurrentStepDisplay from './components/organisms/CurrentStepDisplay'; // I
 import ReportPreview from './components/organisms/ReportPreview'; // Import ReportPreview
 import ChatbotSidebar from './components/organisms/ChatbotSidebar'; // Import ChatbotSidebar
 import DocumentTypeSelectionPopup from './components/molecules/DocumentTypeSelectionPopup'; // Import the new popup
+import RecordInfoPopup from './components/molecules/RecordInfoPopup'; // Import RecordInfoPopup
 
 
 type Meeting = {
@@ -101,7 +102,13 @@ const App: React.FC = () => {
   const [selectedDocTypes, setSelectedDocTypes] = useState<string[]>([]); // State for selected document types
   const [activeLeftSidebar, setActiveLeftSidebar] = useState<'meetingList' | 'chatbot' | 'none'>('meetingList'); // Single state for active left sidebar
   // const [PDFGenerating, setPDFGenerating] = useState(false); // REMOVED - State seems unused in App.tsx
-  const [recordInfo, setRecordInfo] = useState<{ participants: number; purpose: string; title: string } | null>(null); // State for recording info
+  const [recordInfo, setRecordInfo] = useState<{ participants: number; purpose: string; title: string } | null>(null);
+  const [uploadedAudioFile, setUploadedAudioFile] = useState<Blob | null>(null); // Changed type to Blob | null
+  const [uploadedFileNameForDisplay, setUploadedFileNameForDisplay] = useState<string | null>(null); // New state for display name
+  const [isSharedRecordInfoPopupVisible, setIsSharedRecordInfoPopupVisible] = useState(false);
+  const [completionContextMessage, setCompletionContextMessage] = useState<string | null>(null);
+  const [liveAudioChunks, setLiveAudioChunks] = useState<Blob[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   // 단계 정의 수정 (5단계로 복구)
   const serverSteps: ProcessStep[] = [
@@ -193,91 +200,94 @@ const App: React.FC = () => {
 
   // WebSocket Connection Handling using Controller
   useEffect(() => {
-    if (processingStarted && !isRecording) {
-      // Define callbacks for the controller
+    // Connect only if processing has started, not currently recording, AND meeting info is available.
+    if (processingStarted && !isRecording && recordInfo) {
       const callbacks = {
-        onOpen: () => {
-          console.log('WebSocket Connected (via Controller)');
-          // setIsConnected(true); // State removed, handled implicitly
+        onOpen: async () => {
+          console.log('WebSocket Connected (via Controller), preparing to send data.');
+          // Re-verify that audio file and record info are available right before sending
+          if (uploadedAudioFile && recordInfo) {
+            const metadataToSend = {
+              meeting_info: recordInfo, // recordInfo should be guaranteed by the useEffect condition
+              language: "ko" // Assuming Korean, make configurable if needed
+            };
+            console.log('[App.tsx onOpen] Attempting to send meeting data via WebSocket.');
+            const success = await WebsocketController.sendMeetingData(metadataToSend, uploadedAudioFile);
+            if (success) {
+              console.log('[App.tsx onOpen] Meeting data sent successfully.');
+              setUploadedAudioFile(null); // Clear the file *after successful send*
+              setUploadedFileNameForDisplay(null); // Clear display name too
+            } else {
+              console.error('[App.tsx onOpen] Failed to send meeting data.');
+              setWarningMessage('데이터 전송에 실패했습니다. 연결 상태를 확인하고 다시 시도해 주세요.');
+              setShowWarning(true);
+              resetStateForNewSession();
+            }
+          } else {
+            // This block should ideally not be reached if the useEffect condition is working,
+            // but added for robustness and debugging.
+            console.error('[App.tsx onOpen] Check failed: uploadedAudioFile or recordInfo missing.', {
+              hasAudioFile: !!uploadedAudioFile,
+              hasRecordInfo: !!recordInfo,
+              processingStarted,
+              isRecording
+            });
+            setWarningMessage('데이터 준비 중 오류가 발생했습니다. 다시 시도해 주세요.');
+            setShowWarning(true);
+            resetStateForNewSession();
+          }
         },
         onClose: (reason?: string) => {
-          console.log('WebSocket Disconnected (via Controller):', reason);
-          // setIsConnected(false); // State removed
-          // Reset processing state if connection closes unexpectedly unless it was the final step
-          // Check currentStep state directly here
+          console.log('[App.tsx onClose] WebSocket Disconnected:', reason);
           setProcessSteps(prevSteps => {
             const finalStepCompleted = prevSteps.find(s => s.id === serverSteps.length)?.status === 'completed';
             if (!finalStepCompleted) {
-              console.log('Resetting state due to unexpected disconnect.');
-              setProcessingStarted(false);
+              console.log('[App.tsx onClose] Resetting state due to unexpected disconnect.');
+              setProcessingStarted(false); // Allow re-initiation
             }
-            return prevSteps; // Keep current steps if final step was reached
+            return prevSteps;
           });
         },
         onError: (error: Event) => {
-          console.error('WebSocket Error (via Controller):', error);
-          // setIsConnected(false); // State removed
-          // Handle connection errors (e.g., show an error message to the user)
-          // Reset the process
+          console.error('[App.tsx onError] WebSocket Error:', error);
           setProcessingStarted(false);
           setProcessSteps(serverSteps.map(step => ({ ...step, status: 'pending' })));
           setCurrentStep(0);
-          // Maybe show an alert or notification to the user
-          // alert("WebSocket connection error. Please try again."); // Replace alert with popup
-          setWarningMessage('WebSocket connection error. Please check the connection and try again.');
+          setWarningMessage('WebSocket 연결 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
           setShowWarning(true);
         },
-        // Pass state setters directly
-        onStepUpdate: updateStepStatus, // Pass the existing function
+        onStepUpdate: updateStepStatus, // Pass the stable callback
         onDocumentsReceived: (docs: Document[]) => {
           setDocuments(docs);
-          setShowDocumentPanel(true); // Show panel when docs arrive
+          setShowDocumentPanel(true);
         },
         onInsightsReceived: (insights: KeyInsight[]) => {
           setKeyInsights(insights);
-          setShowAIInsights(true); // Show insights when they arrive
+          setShowAIInsights(true);
         },
         onHtmlReceived: setGeneratedHtml,
         onSetCurrentStep: setCurrentStep,
-        // onSetPdfGenerating: setPDFGenerating, // REMOVED
         onSetAiHighlightMode: setAiHighlightMode,
-        onStatusChange: setConnectionStatus, // Add the status change handler
+        onStatusChange: setConnectionStatus, // Pass the state setter
       };
 
-      // Connect using the controller
+      console.log("[App.tsx useEffect] Conditions met, connecting WebSocket.", { processingStarted, isRecording, hasRecordInfo: !!recordInfo });
       WebsocketController.connect(callbacks);
-      // Fetch and send sample audio file when connection is established
-      fetch('/assets/test.mp3')
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`Failed to fetch test audio: ${response.status}`);
-          }
-          return response.arrayBuffer();
-        })
-        .then(arrayBuffer => {
-          // Convert ArrayBuffer to Blob with audio/mp3 MIME type
-          const audioBlob = new Blob([arrayBuffer], { type: 'audio/mp3' });
 
-          // Send the audio data using WebsocketController
-          console.log('Sending test audio data to WebSocket');
-          WebsocketController.sendAudioData(audioBlob);
-        })
-        .catch(error => {
-          console.error('Error fetching or sending test audio:', error);
-          setWarningMessage(`Failed to load test audio: ${error.message}`);
-          setShowWarning(true);
-        });
-
-
-      // Cleanup function: Disconnect using the controller
+      // Cleanup function for when the component unmounts or dependencies change triggering a reconnect/disconnect
       return () => {
+        console.log("[App.tsx useEffect cleanup] Disconnecting WebSocket.");
         WebsocketController.disconnect();
       };
-    } else {
-      // Ensure disconnection if processing stops or recording starts
+    } else if (!processingStarted) {
+      // Ensure disconnection if processing stops explicitly
+      // console.log("[App.tsx useEffect] processingStarted is false, ensuring disconnection."); // Can be noisy
       WebsocketController.disconnect();
     }
-  }, [processingStarted, isRecording, updateStepStatus]); // Add updateStepStatus to dependency array
+    // Dependencies: Connect/disconnect primarily based on processingStarted.
+    // recordInfo is included to ensure we don't try connecting before info is ready.
+    // isRecording prevents connection while recording. updateStepStatus is stable.
+  }, [processingStarted, isRecording, recordInfo, updateStepStatus]); // Removed uploadedAudioFile
 
 
   // PDF Preview Scroll (Adjusted for 5 steps)
@@ -286,77 +296,167 @@ const App: React.FC = () => {
     if (currentStep === 5 && processSteps.find(s => s.id === 5)?.status === 'completed' && generatedHtml && previewRef.current) {
       previewRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [currentStep, processSteps, generatedHtml]); // Depend on generatedHtml as well
+  }, [currentStep, processSteps, generatedHtml]);
+
+  const resetStateForNewSession = () => {
+    setIsRecording(false);
+    setRecordingTime(0);
+    setProcessingStarted(false);
+    setCurrentStep(0);
+    setShowDocumentPanel(false);
+    setActiveLeftSidebar('none');
+    setShowAIInsights(false);
+    setKeyInsights([]);
+    setDocuments([]);
+    setGeneratedHtml(null);
+    setSentimentData([]);
+    setLiveKeywords([]);
+    setAiHighlightMode(false);
+    setRecordingCompleted(false);
+    setShowDocTypePopup(false);
+    setSelectedDocTypes([]);
+    setProcessSteps(serverSteps.map(step => ({ ...step, status: 'pending' })));
+    WebsocketController.disconnect();
+    setUploadedAudioFile(null);
+    setUploadedFileNameForDisplay(null); // Clear display name
+    setCompletionContextMessage(null);
+  };
 
   const handleRecordToggle = (participants?: number, purpose?: string, title?: string) => {
     if (isRecording) {
-      // Stop recording: Show confirmation popup instead of immediate stop
-      setShowStopConfirmation(true);
+      // Stop recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop(); // This will trigger 'onstop'
+      }
+      setShowStopConfirmation(true); // Still show confirmation for UI consistency
     } else {
-      // Start recording: Reset everything
-      if (participants && purpose && title) {
+      // Start recording
+      if (participants && purpose && title) { // Called from shared popup confirm for live recording
+        resetStateForNewSession();
         setRecordInfo({ participants, purpose, title });
-        console.log('Recording started with info:', { participants, purpose, title }); // Log for debugging
-        setIsRecording(true);
-        // Reset state for new recording session
-        setRecordingTime(0);
-        setProcessingStarted(false); // Ensure processing doesn't start immediately
-        setCurrentStep(0);
-        // setPDFGenerating(false); // REMOVED
-        setShowDocumentPanel(false);
-        // setShowLeftSidebar(false); // REMOVED - Now handled by activeLeftSidebar state
-        setActiveLeftSidebar('none'); // Hide any active left sidebar on new recording
-        setShowAIInsights(false);
-        setKeyInsights([]);
-        setDocuments([]); // Clear previous documents
-        setGeneratedHtml(null); // Clear previous HTML
-        setSentimentData([]);
-        setLiveKeywords([]);
-        setAiHighlightMode(false);
-        setRecordingCompleted(false); // Reset recording completed state
-        setShowDocTypePopup(false); // Ensure doc type popup is hidden
-        setSelectedDocTypes([]); // Clear selected doc types
-        setProcessSteps(serverSteps.map(step => ({ ...step, status: 'pending' }))); // Reset steps visual state
-        // Close WebSocket connection using the controller
-        WebsocketController.disconnect();
-      } else {
-        // This case should ideally not be reached if the popup is mandatory before starting.
-        // However, as a fallback or if onToggle is called without params for other reasons:
-        console.warn("Attempted to start recording without providing necessary information.");
-        // Optionally, trigger the info popup again or show a warning.
-        // For now, we'll just prevent recording from starting.
+        console.log('Attempting to start live recording with info:', { participants, purpose, title });
+        setUploadedAudioFile(null);
+
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            mediaRecorderRef.current.ondataavailable = (event) => {
+              if (event.data.size > 0) {
+                setLiveAudioChunks(prev => [...prev, event.data]);
+              }
+            };
+            mediaRecorderRef.current.onstop = () => {
+              console.log('MediaRecorder stopped, processing chunks.');
+              const audioBlob = new Blob(liveAudioChunks, { type: 'audio/webm' }); // Adjust MIME type if needed
+              setUploadedAudioFile(audioBlob);
+              setUploadedFileNameForDisplay(`live_recording_${Date.now()}.webm`); // Set a display name for live recording
+              setLiveAudioChunks([]); // Reset chunks
+              // Stop all tracks on the stream to release the microphone
+              stream.getTracks().forEach(track => track.stop());
+              console.log('Live recording processed into a Blob:', audioBlob);
+            };
+            mediaRecorderRef.current.start();
+            setIsRecording(true);
+            console.log('Live recording started.');
+          })
+          .catch(err => {
+            console.error("Error accessing microphone:", err);
+            setWarningMessage(`마이크 접근 오류: ${err.message}`);
+            setShowWarning(true);
+            resetStateForNewSession(); // Reset if mic access fails
+          });
+      } else { // Called from RecordButton's "Start Recording" (Mic icon) click
+        setUploadedAudioFile(null);
+        setRecordInfo(null);
+        setIsSharedRecordInfoPopupVisible(true);
       }
     }
   };
 
-  // Handler for confirming stop recording ONLY
-  const handleConfirmStop = () => {
-    setIsRecording(false);
-    // Don't start processing yet
-    // setProcessingStarted(true);
-    setShowStopConfirmation(false); // Close the popup
-    setRecordingCompleted(true); // Set recording completed state
+  // This function is called by handleSharedPopupConfirm if an uploadedAudioFile exists.
+  const processFileUploadConfirmation = (file: Blob, participants: number, purpose: string, title: string) => {
+    // Determine filename for logging/display
+    const fileName = file instanceof File ? file.name : uploadedFileNameForDisplay || 'recorded_audio.webm';
+    console.log('File upload processing (via App.tsx):', { fileName, participants, purpose, title });
+    setRecordInfo({ participants, purpose, title });
+    // Ensure display name is set if it wasn't (e.g., if somehow processFileUploadConfirmation was called directly with a blob)
+    if (!uploadedFileNameForDisplay && file instanceof File) {
+      setUploadedFileNameForDisplay(file.name);
+    } else if (!uploadedFileNameForDisplay) {
+      setUploadedFileNameForDisplay('recorded_audio.webm');
+    }
+    setRecordingCompleted(true); // This transitions UI to "문서 생성"
+    setCompletionContextMessage("업로드가 완료되었습니다."); // Set message for file upload
   };
 
-  // Handler for showing the document type selection popup (triggered by the "문서 생성" button)
+
+  // New handler for file drop directly in ReportPreview
+  const handleFileDropInReportPreview = (file: File) => { // Receives a File object
+    console.log('File dropped in ReportPreview:', file.name);
+    resetStateForNewSession();
+    setUploadedAudioFile(file); // Store the File (which is also a Blob)
+    setUploadedFileNameForDisplay(file.name); // Store the name for display
+    setRecordInfo(null);
+    setIsSharedRecordInfoPopupVisible(true);
+  };
+
+  // Shared popup confirm handler
+  const handleSharedPopupConfirm = (participants: number, purpose: string, title: string) => {
+    if (uploadedAudioFile) {
+      // If a file was set (e.g., from ReportPreview drop, or if RecordButton had a file and triggered this popup)
+      processFileUploadConfirmation(uploadedAudioFile, participants, purpose, title);
+    } else { // No file, so this must be for starting a new live recording
+      handleRecordToggle(participants, purpose, title); // Call with full args to actually start live recording
+    }
+    setIsSharedRecordInfoPopupVisible(false);
+  };
+
+  const handleSharedPopupCancel = () => {
+    setIsSharedRecordInfoPopupVisible(false);
+    // If a file was dropped in ReportPreview and popup was cancelled, uploadedAudioFile is still set.
+    // ReportPreview will show its default placeholder.
+    // RecordButton will show "회의 정보 입력" if uploadedAudioFile is present.
+    // If user then clicks "녹음 시작" on RecordButton, uploadedAudioFile will be cleared.
+    // If user clicks "회의 정보 입력" on RecordButton, the popup re-opens for the existing uploadedAudioFile.
+    // This seems like reasonable behavior. If we wanted to clear uploadedAudioFile on cancel, we'd do it here.
+    // For now, let's keep uploadedAudioFile so "회의 정보 입력" on RecordButton works.
+    // Consider: if (uploadedAudioFile && !recordInfo) setUploadedAudioFile(null); // to reset if info was never entered for a dropped file
+  };
+
+  const handleConfirmStop = () => {
+    // Actual stopping is handled by mediaRecorderRef.current.stop() in handleRecordToggle
+    // This function now primarily handles UI update after stop confirmation.
+    setIsRecording(false); // Update UI state
+    setShowStopConfirmation(false);
+    setRecordingCompleted(true);
+    setCompletionContextMessage("녹음이 완료되었습니다.");
+    // At this point, uploadedAudioFile should have been set by mediaRecorder.onstop
+    if (!uploadedAudioFile && liveAudioChunks.length === 0) { // Check if onstop might not have fired or blob is empty
+      console.warn("Recording stopped, but no audio data was captured or processed into uploadedAudioFile.");
+      // Potentially set a warning or error state here if needed
+    }
+  };
+
   const handleStartGeneration = () => {
-    // Don't start processing yet, show the popup first
-    // setProcessingStarted(true);
-    // setRecordingCompleted(false); // Keep this true to keep button state until generation confirmed
-    setSelectedDocTypes([]); // Clear previous selections
+    setSelectedDocTypes([]);
     setShowDocTypePopup(true);
   };
 
-  // Handler for confirming generation after selecting document types
   const handleConfirmGeneration = () => {
-    // TODO: Send selectedDocTypes and recordInfo to the backend when initiating the connection/process
-    console.log('Selected document types:', selectedDocTypes);
+    console.log('Selected document types for generation:', selectedDocTypes);
     if (recordInfo) {
-      console.log('Recording Info:', recordInfo);
+      console.log('Meeting Info for generation:', recordInfo);
     }
-    setProcessingStarted(true); // Now start the actual processing
-    setShowDocTypePopup(false); // Hide the popup
-    setRecordingCompleted(false); // Hide the "Generate" button state and "Recording Completed" message
+    // If !uploadedAudioFile and !isRecording (after stopping), this implies live recording data needs to be handled.
+    // For now, the WebSocket useEffect handles uploadedAudioFile. Live recording data path needs clarification.
+    // If there's an uploadedAudioFile, it will be sent by the useEffect when processingStarted becomes true.
+    // If it was a live recording, the mechanism to get that audio data to WebsocketController.sendAudioData needs to be in place.
+    // For this iteration, we assume if uploadedAudioFile is null, the test.mp3 will be sent by the WebSocket logic.
+    // This might need refinement if live recorded audio should be sent instead of test.mp3.
+
+    setProcessingStarted(true);
+    setShowDocTypePopup(false);
+    setRecordingCompleted(false); // Processing has started, so "문서 생성" button should disappear
   };
 
   // Handler for canceling the document type selection
@@ -598,22 +698,34 @@ const App: React.FC = () => {
               isRecording={isRecording}
               processingStarted={processingStarted}
               generatedHtml={generatedHtml}
-              recordingCompleted={recordingCompleted} // Pass recordingCompleted state
+              // recordingCompleted={recordingCompleted} // Removed as it's no longer a prop
+              onFileDrop={handleFileDropInReportPreview}
+              completionMessage={completionContextMessage} // Pass the new message prop
             />
           </div>
         </div>
 
-        {/* Use RecordButton Component - Pass recordingCompleted and generation handler */}
+        {/* RecordButton now uses App-controlled popup for initiating live recording */}
         <RecordButton
           isRecording={isRecording}
           processingStarted={processingStarted}
-          recordingCompleted={recordingCompleted} // Pass recordingCompleted state
-          onToggle={handleRecordToggle}
-          onStartGeneration={handleStartGeneration} // Pass generation handler
+          recordingCompleted={recordingCompleted}
+          onToggleRecord={handleRecordToggle} // Handles start/stop of live recording (shows popup for start)
+          onStartGeneration={handleStartGeneration}
+          initialUploadedFileName={uploadedFileNameForDisplay} // Use the dedicated display name state
+          onRequestShowInfoPopup={() => {
+            // If called, it's from "회의 정보 입력" button.
+            // uploadedAudioFile should already be set from a previous ReportPreview drop.
+            // If not, it's an edge case, but opening popup is fine.
+            if (!uploadedAudioFile) {
+              console.warn("onRequestShowInfoPopup called but no uploadedAudioFile is set. This might be an issue.");
+              // Default to live recording flow if no file is somehow present
+              setUploadedAudioFile(null);
+            }
+            setIsSharedRecordInfoPopupVisible(true);
+          }}
         />
       </div>
-
-      {/* Conditionally render RightSidebar based on actualShowRightSidebar */}
 
       <RightSidebar
         showDocumentPanel={showDocumentPanel}
@@ -638,7 +750,7 @@ const App: React.FC = () => {
         message="녹음을 종료하시겠습니까?" // Changed message
         confirmText="종료" // Changed confirm text
         cancelText="취소"
-        onConfirm={handleConfirmStop} // Now only stops recording
+        onConfirm={handleConfirmStop}
         onCancel={handleCancelStop}
       />
 
@@ -650,8 +762,18 @@ const App: React.FC = () => {
         onConfirm={handleConfirmGeneration}
         onCancel={handleCancelGeneration}
       />
+
+      {/* Shared RecordInfoPopup controlled by App.tsx */}
+      <RecordInfoPopup
+        isVisible={isSharedRecordInfoPopupVisible}
+        onConfirm={handleSharedPopupConfirm}
+        onCancel={handleSharedPopupCancel}
+        confirmButtonText={uploadedAudioFile ? "확인" : "녹음 시작"} // Dynamic button text
+      // Optionally pass initialTitle if uploadedAudioFile is set and popup is for it
+      // initialTitle={uploadedAudioFile ? uploadedAudioFile.name.split('.').slice(0, -1).join('.') : undefined}
+      />
     </div>
   );
-}; // Correctly close the App component function here
+};
 
 export default App;
