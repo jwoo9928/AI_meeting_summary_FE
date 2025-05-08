@@ -50,10 +50,12 @@ const DocumentListItem: React.FC<DocumentListItemProps> = ({ doc, index }) => {
                 {/* Add min-w-0 to allow truncation within flex container */}
                 <div className="flex-1 min-w-0">
                     {/* Display title and type separately for targeted truncation */}
-                    <h3 className="font-medium text-gray-800 text-sm flex"> {/* Use flex to keep spans inline */}
-                        <span className="truncate">{doc.title}</span>
+                    <h3 className="font-medium text-gray-800 text-sm flex items-baseline"> {/* Use flex and items-baseline */}
+                        <span className="truncate">
+                            {doc.title.endsWith('.' + doc.type) ? doc.title.slice(0, -(doc.type.length + 1)) : doc.title}
+                        </span>
                         {/* Append type, ensuring it's not truncated */}
-                        {doc.type && <span className="flex-shrink-0">.{doc.type}</span>}
+                        {doc.type && <span className="flex-shrink-0 text-gray-500">.{doc.type}</span>}
                     </h3>
                     {/* Conditionally render date */}
                     {doc.date && (
@@ -63,11 +65,11 @@ const DocumentListItem: React.FC<DocumentListItemProps> = ({ doc, index }) => {
                 {/* Score Indicator - Use score instead of relevanceScore */}
                 {doc.score !== undefined && ( // Check if score exists using !== undefined
                     <div className="flex flex-col items-center ml-2">
-                        {/* Display score as rounded whole number */}
-                        <div className="text-sm font-semibold text-blue-600">{Math.round(doc.score)}</div>
-                        {/* Assume score is 0-100 for progress bar width */}
+                        {/* Display score as percentage */}
+                        <div className="text-sm font-semibold text-blue-600">{Math.round((doc.score || 0) * 100)}%</div>
+                        {/* Score is 0-1, scale to 0-100 for progress bar width */}
                         <div className="w-10 h-1.5 bg-gray-200 rounded-full mt-1"> {/* Slightly larger bar */}
-                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(Math.max(doc.score || 0, 0), 100)}%` }}></div>
+                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(Math.max((doc.score || 0) * 100, 0), 100)}%` }}></div>
                         </div>
                     </div>
                 )}
