@@ -101,6 +101,7 @@ const App: React.FC = () => {
   const [selectedDocTypes, setSelectedDocTypes] = useState<string[]>([]); // State for selected document types
   const [activeLeftSidebar, setActiveLeftSidebar] = useState<'meetingList' | 'chatbot' | 'none'>('meetingList'); // Single state for active left sidebar
   // const [PDFGenerating, setPDFGenerating] = useState(false); // REMOVED - State seems unused in App.tsx
+  const [recordInfo, setRecordInfo] = useState<{ participants: number; purpose: string; title: string } | null>(null); // State for recording info
 
   // 단계 정의 수정 (5단계로 복구)
   const serverSteps: ProcessStep[] = [
@@ -245,6 +246,28 @@ const App: React.FC = () => {
 
       // Connect using the controller
       WebsocketController.connect(callbacks);
+      // Fetch and send sample audio file when connection is established
+      fetch('/assets/test.mp3')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch test audio: ${response.status}`);
+          }
+          return response.arrayBuffer();
+        })
+        .then(arrayBuffer => {
+          // Convert ArrayBuffer to Blob with audio/mp3 MIME type
+          const audioBlob = new Blob([arrayBuffer], { type: 'audio/mp3' });
+
+          // Send the audio data using WebsocketController
+          console.log('Sending test audio data to WebSocket');
+          WebsocketController.sendAudioData(audioBlob);
+        })
+        .catch(error => {
+          console.error('Error fetching or sending test audio:', error);
+          setWarningMessage(`Failed to load test audio: ${error.message}`);
+          setShowWarning(true);
+        });
+
 
       // Cleanup function: Disconnect using the controller
       return () => {
@@ -265,34 +288,44 @@ const App: React.FC = () => {
     }
   }, [currentStep, processSteps, generatedHtml]); // Depend on generatedHtml as well
 
-  const handleRecordToggle = () => {
+  const handleRecordToggle = (participants?: number, purpose?: string, title?: string) => {
     if (isRecording) {
       // Stop recording: Show confirmation popup instead of immediate stop
       setShowStopConfirmation(true);
     } else {
       // Start recording: Reset everything
-      setIsRecording(true);
-      // Reset state for new recording session
-      setRecordingTime(0);
-      setProcessingStarted(false); // Ensure processing doesn't start immediately
-      setCurrentStep(0);
-      // setPDFGenerating(false); // REMOVED
-      setShowDocumentPanel(false);
-      // setShowLeftSidebar(false); // REMOVED - Now handled by activeLeftSidebar state
-      setActiveLeftSidebar('none'); // Hide any active left sidebar on new recording
-      setShowAIInsights(false);
-      setKeyInsights([]);
-      setDocuments([]); // Clear previous documents
-      setGeneratedHtml(null); // Clear previous HTML
-      setSentimentData([]);
-      setLiveKeywords([]);
-      setAiHighlightMode(false);
-      setRecordingCompleted(false); // Reset recording completed state
-      setShowDocTypePopup(false); // Ensure doc type popup is hidden
-      setSelectedDocTypes([]); // Clear selected doc types
-      setProcessSteps(serverSteps.map(step => ({ ...step, status: 'pending' }))); // Reset steps visual state
-      // Close WebSocket connection using the controller
-      WebsocketController.disconnect();
+      if (participants && purpose && title) {
+        setRecordInfo({ participants, purpose, title });
+        console.log('Recording started with info:', { participants, purpose, title }); // Log for debugging
+        setIsRecording(true);
+        // Reset state for new recording session
+        setRecordingTime(0);
+        setProcessingStarted(false); // Ensure processing doesn't start immediately
+        setCurrentStep(0);
+        // setPDFGenerating(false); // REMOVED
+        setShowDocumentPanel(false);
+        // setShowLeftSidebar(false); // REMOVED - Now handled by activeLeftSidebar state
+        setActiveLeftSidebar('none'); // Hide any active left sidebar on new recording
+        setShowAIInsights(false);
+        setKeyInsights([]);
+        setDocuments([]); // Clear previous documents
+        setGeneratedHtml(null); // Clear previous HTML
+        setSentimentData([]);
+        setLiveKeywords([]);
+        setAiHighlightMode(false);
+        setRecordingCompleted(false); // Reset recording completed state
+        setShowDocTypePopup(false); // Ensure doc type popup is hidden
+        setSelectedDocTypes([]); // Clear selected doc types
+        setProcessSteps(serverSteps.map(step => ({ ...step, status: 'pending' }))); // Reset steps visual state
+        // Close WebSocket connection using the controller
+        WebsocketController.disconnect();
+      } else {
+        // This case should ideally not be reached if the popup is mandatory before starting.
+        // However, as a fallback or if onToggle is called without params for other reasons:
+        console.warn("Attempted to start recording without providing necessary information.");
+        // Optionally, trigger the info popup again or show a warning.
+        // For now, we'll just prevent recording from starting.
+      }
     }
   };
 
@@ -316,8 +349,11 @@ const App: React.FC = () => {
 
   // Handler for confirming generation after selecting document types
   const handleConfirmGeneration = () => {
-    // TODO: Send selectedDocTypes to the backend when initiating the connection/process
-    console.log('Selected document types:', selectedDocTypes); // Log selected types for now
+    // TODO: Send selectedDocTypes and recordInfo to the backend when initiating the connection/process
+    console.log('Selected document types:', selectedDocTypes);
+    if (recordInfo) {
+      console.log('Recording Info:', recordInfo);
+    }
     setProcessingStarted(true); // Now start the actual processing
     setShowDocTypePopup(false); // Hide the popup
     setRecordingCompleted(false); // Hide the "Generate" button state and "Recording Completed" message
@@ -425,11 +461,10 @@ const App: React.FC = () => {
 
   // Calculate dynamic left margin for main content based on single active sidebar
   const calculateLeftMargin = () => {
-    const meetingListWidth = '72'; // Corresponds to w-72 (288px)
     if (activeLeftSidebar === 'none') {
       return 'ml-0'; // No margin if no sidebar is active
     }
-    return `ml-${meetingListWidth}`;
+    return `ml-72`;
   };
 
   return (

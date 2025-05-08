@@ -14,6 +14,11 @@ type RawInsight = {
     // Add other potential fields if known
 };
 
+// Type for the object structure of insights received in step 3
+type RawInsightsObject = {
+    [key: string]: RawInsight;
+};
+
 // ProcessStep type is now imported from App.tsx
 /*
 type ProcessStep = {
@@ -43,7 +48,7 @@ class WebsocketController {
     private static instance: WebsocketController | null = null;
     private ws: WebSocket | null = null;
     private callbacks: UpdateCallbacks | null = null;
-    private url: string = 'ws://localhost:8000/ws/dummy'; // Default URL
+    private url: string = 'ws://localhost:8000/ws/dummy'; // Updated URL based on server code
     private connectionStatus: ConnectionStatus = 'disconnected'; // Added status state
 
     private constructor() { }
@@ -67,6 +72,10 @@ class WebsocketController {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             console.log('WebSocket already connected.');
             this.updateStatus('connected'); // Ensure status is correct if already connected
+            // If re-connecting with potentially new callbacks, assign them
+            this.callbacks = callbacks;
+            // Optionally trigger onOpen again if needed for UI updates
+            this.callbacks?.onOpen();
             return;
         }
 
@@ -79,9 +88,9 @@ class WebsocketController {
             console.log('WebSocket Connected');
             this.updateStatus('connected'); // Set status to connected
             this.callbacks?.onOpen();
-            // Start the first step visually
-            this.callbacks?.onStepUpdate(1, 'processing');
-            this.callbacks?.onSetCurrentStep(1);
+            // Don't start the first step visually here, wait for audio data
+            // this.callbacks?.onStepUpdate(1, 'processing');
+            // this.callbacks?.onSetCurrentStep(1);
         };
 
         this.ws.onmessage = (event) => {
@@ -123,32 +132,63 @@ class WebsocketController {
         }
     }
 
+    // --- NEW METHOD ---
+    /**
+     * Sends audio data (Blob or ArrayBuffer) over the WebSocket connection.
+     * @param audioData The audio data to send.
+     * @returns True if the data was sent, false otherwise (e.g., not connected).
+     */
+    public sendAudioData(audioData: Blob): boolean {
+        if (this.isConnected() && this.ws) {
+            console.log('Sending audio data...');
+            try {
+                this.ws.send(audioData);
+                console.log('Audio data sent successfully.');
+                // Visually start the first step after sending data
+                if (this.callbacks) {
+                    this.callbacks.onStepUpdate(1, 'processing');
+                    this.callbacks.onSetCurrentStep(1);
+                }
+                return true;
+            } catch (error) {
+                console.error('Error sending audio data:', error);
+                this.updateStatus('error');
+                this.callbacks?.onError(new ErrorEvent('senderror', { error }));
+                return false;
+            }
+        } else {
+            console.warn('Cannot send audio data: WebSocket is not connected.');
+            return false;
+        }
+    }
+    // --- END NEW METHOD ---
+
+
     private handleMessage(message: string): void {
         if (!this.callbacks) return;
-
+        console.log("Handling WebSocket message:", message);
         try {
-            if (message.startsWith("1단계 완료:")) {
+            // Updated logic to handle messages starting with step numbers directly
+            if (message.startsWith("1단계 완료")) {
+                console.log("Step 1 (Whisper) Completed");
                 this.callbacks.onStepUpdate(1, 'completed');
                 this.callbacks.onStepUpdate(2, 'processing');
                 this.callbacks.onSetCurrentStep(2);
-                // const step1Data = message.substring("1단계 완료: ".length);
-                // console.log("Step 1 Data:", step1Data);
+                const step1Data = message.substring("1단계 완료: ".length);
+                console.log("Step 1 (Whisper) Result:", step1Data);
 
             } else if (message.startsWith("2단계 완료:")) {
                 this.callbacks.onStepUpdate(2, 'completed');
                 this.callbacks.onStepUpdate(3, 'processing');
                 this.callbacks.onSetCurrentStep(3);
                 const jsonDataString = message.substring("2단계 완료: ".length);
-                // Parse with the specific raw type
                 const step2Data: RawDocument[] = JSON.parse(jsonDataString);
-                console.log("Step 2 Data:", step2Data);
-                // Map using the raw type, then structure into the App's Document type
+                console.log("Step 2 (Document Extraction) Data:", step2Data);
                 const documentsWithIds: Document[] = step2Data.map((doc: RawDocument, index: number): Document => ({
-                    id: `doc-${Date.now()}-${index}`, // Generate ID
+                    id: `doc-${Date.now()}-${index}`,
                     title: doc.title,
                     type: doc.type,
-                    score: doc.score, // Map score if available
-                    // date is not provided by this dummy server message
+                    score: doc.score,
                 }));
                 this.callbacks.onDocumentsReceived(documentsWithIds);
 
@@ -157,12 +197,11 @@ class WebsocketController {
                 this.callbacks.onStepUpdate(4, 'processing');
                 this.callbacks.onSetCurrentStep(4);
                 const jsonDataString = message.substring("3단계 완료: ".length);
-                // Parse with the specific raw type
-                const step3Data: RawInsight[] = JSON.parse(jsonDataString);
-                console.log("Step 3 Data:", step3Data);
-                // Map using the raw type, then structure into the App's KeyInsight type
-                const insightsWithIds: KeyInsight[] = step3Data.map((insight: RawInsight, index: number): KeyInsight => ({
-                    id: `insight-${Date.now()}-${index}`, // Generate ID
+                const step3Data: RawInsightsObject = JSON.parse(jsonDataString); // Use RawInsightsObject
+                console.log("Step 3 (Key Insights) Data:", step3Data);
+                // Iterate over the values of the object
+                const insightsWithIds: KeyInsight[] = Object.values(step3Data).map((insight: RawInsight, index: number): KeyInsight => ({
+                    id: `insight-${Date.now()}-${index}`,
                     insight: insight.insight,
                     score: insight.score,
                 }));
@@ -173,24 +212,30 @@ class WebsocketController {
                 this.callbacks.onStepUpdate(5, 'processing');
                 this.callbacks.onSetCurrentStep(5);
                 const htmlContent = message.substring("4단계 완료: ".length);
-                console.log("Step 4 HTML Received, starting Step 5 (Display)");
+                console.log("Step 4 (HTML Report) Received, starting Step 5 (Display)");
                 this.callbacks.onHtmlReceived(htmlContent);
-                // this.callbacks.onSetPdfGenerating(true); // REMOVED
                 this.callbacks.onSetAiHighlightMode(true);
                 // HTML 설정 후 바로 5단계 완료 처리
                 this.callbacks.onStepUpdate(5, 'completed');
                 console.log("Step 5 (Display) Completed");
-                // Optionally disconnect after final step
-                // this.disconnect();
+            } else {
+                console.warn("Received unhandled WebSocket message:", message);
             }
         } catch (error) {
             console.error("Error processing WebSocket message:", error);
-            // Handle parsing errors or unexpected message formats
+            this.updateStatus('error');
+            this.callbacks?.onError(new ErrorEvent('messageerror', { error }));
         }
     }
 
     public isConnected(): boolean {
+        // Check readyState directly for connection status
         return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+    }
+
+    // Added getter for connection status
+    public getConnectionStatus(): ConnectionStatus {
+        return this.connectionStatus;
     }
 }
 
