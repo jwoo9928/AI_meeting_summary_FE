@@ -5,7 +5,7 @@ import AppHeader from './components/organisms/AppHeader'; // Import AppHeader
 import ProcessStepsBar from './components/organisms/ProcessStepsBar'; // Import ProcessStepsBar
 import RightSidebar from './components/organisms/RightSidebar'; // Import RightSidebar
 import RealtimeVisualization from './components/organisms/RealtimeVisualization'; // Import RealtimeVisualization
-import WebsocketController, { ConnectionStatus } from './controllers/WebsocketController'; // Import ConnectionStatus
+import WebsocketController, { ConnectionStatus, MeetingMetadata } from './controllers/WebsocketController'; // Import ConnectionStatus and MeetingMetadata
 import WarningPopup from './components/molecules/WarningPopup'; // Import WarningPopup
 import ConfirmationPopup from './components/molecules/ConfirmationPopup'; // Import ConfirmationPopup
 import RecordButton from './components/molecules/RecordButton'; // Import RecordButton
@@ -102,7 +102,13 @@ const App: React.FC = () => {
   const [selectedDocTypes, setSelectedDocTypes] = useState<string[]>([]); // State for selected document types
   const [activeLeftSidebar, setActiveLeftSidebar] = useState<'meetingList' | 'chatbot' | 'none'>('meetingList'); // Single state for active left sidebar
   // const [PDFGenerating, setPDFGenerating] = useState(false); // REMOVED - State seems unused in App.tsx
-  const [recordInfo, setRecordInfo] = useState<{ participants: number; purpose: string; title: string } | null>(null);
+  const [recordInfo, setRecordInfo] = useState<{
+    author: string;
+    participants: string[];
+    purpose: string;
+    title: string;
+    meeting_info: string;
+  } | null>(null);
   const [uploadedAudioFile, setUploadedAudioFile] = useState<Blob | null>(null); // Changed type to Blob | null
   const [uploadedFileNameForDisplay, setUploadedFileNameForDisplay] = useState<string | null>(null); // New state for display name
   const [isSharedRecordInfoPopupVisible, setIsSharedRecordInfoPopupVisible] = useState(false);
@@ -207,11 +213,14 @@ const App: React.FC = () => {
           console.log('WebSocket Connected (via Controller), preparing to send data.');
           // Re-verify that audio file and record info are available right before sending
           if (uploadedAudioFile && recordInfo) {
-            const metadataToSend = {
-              meeting_info: recordInfo, // recordInfo should be guaranteed by the useEffect condition
-              language: "ko" // Assuming Korean, make configurable if needed
+            const metadataToSend: MeetingMetadata = {
+              title: recordInfo.title,
+              author: recordInfo.author,
+              participants: recordInfo.participants,
+              meeting_purpose: recordInfo.purpose, // Maps from recordInfo.purpose
+              meeting_info: recordInfo.meeting_info
             };
-            console.log('[App.tsx onOpen] Attempting to send meeting data via WebSocket.');
+            console.log('[App.tsx onOpen] Attempting to send meeting data via WebSocket with new metadata structure:', metadataToSend);
             const success = await WebsocketController.sendMeetingData(metadataToSend, uploadedAudioFile);
             if (success) {
               console.log('[App.tsx onOpen] Meeting data sent successfully.');
@@ -322,7 +331,8 @@ const App: React.FC = () => {
     setCompletionContextMessage(null);
   };
 
-  const handleRecordToggle = (participants?: number, purpose?: string, title?: string) => {
+  // Updated to accept the new recordInfo structure for starting live recording
+  const handleRecordToggle = (newRecordInfo?: { author: string; participants: string[]; purpose: string; title: string; meeting_info: string }) => {
     if (isRecording) {
       // Stop recording
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
@@ -331,10 +341,10 @@ const App: React.FC = () => {
       setShowStopConfirmation(true); // Still show confirmation for UI consistency
     } else {
       // Start recording
-      if (participants && purpose && title) { // Called from shared popup confirm for live recording
+      if (newRecordInfo) { // Called from shared popup confirm for live recording
         resetStateForNewSession();
-        setRecordInfo({ participants, purpose, title });
-        console.log('Attempting to start live recording with info:', { participants, purpose, title });
+        setRecordInfo(newRecordInfo);
+        console.log('Attempting to start live recording with info:', newRecordInfo);
         setUploadedAudioFile(null);
 
         navigator.mediaDevices.getUserMedia({ audio: true })
@@ -374,11 +384,20 @@ const App: React.FC = () => {
   };
 
   // This function is called by handleSharedPopupConfirm if an uploadedAudioFile exists.
-  const processFileUploadConfirmation = (file: Blob, participants: number, purpose: string, title: string) => {
+  // Updated to accept the new recordInfo structure
+  const processFileUploadConfirmation = (
+    file: Blob,
+    author: string,
+    participants: string[],
+    purpose: string,
+    title: string,
+    meeting_info: string
+  ) => {
     // Determine filename for logging/display
     const fileName = file instanceof File ? file.name : uploadedFileNameForDisplay || 'recorded_audio.webm';
-    console.log('File upload processing (via App.tsx):', { fileName, participants, purpose, title });
-    setRecordInfo({ participants, purpose, title });
+    const newRecordInfo = { author, participants, purpose, title, meeting_info };
+    console.log('File upload processing (via App.tsx):', { fileName, ...newRecordInfo });
+    setRecordInfo(newRecordInfo);
     // Ensure display name is set if it wasn't (e.g., if somehow processFileUploadConfirmation was called directly with a blob)
     if (!uploadedFileNameForDisplay && file instanceof File) {
       setUploadedFileNameForDisplay(file.name);
@@ -400,13 +419,20 @@ const App: React.FC = () => {
     setIsSharedRecordInfoPopupVisible(true);
   };
 
-  // Shared popup confirm handler
-  const handleSharedPopupConfirm = (participants: number, purpose: string, title: string) => {
+  // Shared popup confirm handler - Updated signature
+  const handleSharedPopupConfirm = (
+    author: string,
+    participants: string[],
+    purpose: string,
+    title: string,
+    meeting_info: string
+  ) => {
+    const newRecordInfo = { author, participants, purpose, title, meeting_info };
     if (uploadedAudioFile) {
       // If a file was set (e.g., from ReportPreview drop, or if RecordButton had a file and triggered this popup)
-      processFileUploadConfirmation(uploadedAudioFile, participants, purpose, title);
+      processFileUploadConfirmation(uploadedAudioFile, author, participants, purpose, title, meeting_info);
     } else { // No file, so this must be for starting a new live recording
-      handleRecordToggle(participants, purpose, title); // Call with full args to actually start live recording
+      handleRecordToggle(newRecordInfo); // Call with the full newRecordInfo object
     }
     setIsSharedRecordInfoPopupVisible(false);
   };

@@ -44,11 +44,20 @@ type UpdateCallbacks = {
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'; // Added status type
 
+// Define the new interface for meeting metadata
+export interface MeetingMetadata {
+    title: string;
+    author: string;
+    participants: string[];
+    meeting_purpose: string;
+    meeting_info: string;
+}
+
 class WebsocketController {
     private static instance: WebsocketController | null = null;
     private ws: WebSocket | null = null;
     private callbacks: UpdateCallbacks | null = null;
-    private url: string = 'ws://localhost:8000/ws'; // Corrected WebSocket endpoint for FastAPI
+    private url: string = 'ws://localhost:8000/ws/dummy'; // Corrected WebSocket endpoint for FastAPI
     private connectionStatus: ConnectionStatus = 'disconnected';
 
     private constructor() { }
@@ -137,7 +146,7 @@ class WebsocketController {
      * @param audioData The audio data Blob.
      * @returns True if both metadata and audio data were sent successfully, false otherwise.
      */
-    public async sendMeetingData(metadata: object, audioData: Blob): Promise<boolean> {
+    public async sendMeetingData(metadata: MeetingMetadata, audioData: Blob): Promise<boolean> {
         if (!this.isConnected() || !this.ws) {
             console.warn('Cannot send meeting data: WebSocket is not connected.');
             return false;
