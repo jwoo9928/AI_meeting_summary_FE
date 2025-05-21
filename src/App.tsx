@@ -55,33 +55,81 @@ const App: React.FC = () => {
   // const [isConnected, setIsConnected] = useState(false); // REMOVED - Handled by controller callbacks
   const [processingStarted, setProcessingStarted] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [showDocumentPanel, setShowDocumentPanel] = useState(false); // Tracks if documents *data* is available
-  const [meetings, setMeetings] = useState<Meeting[]>([
-    {
-      id: '1',
-      title: '마케팅 전략 회의',
-      date: new Date(2025, 3, 25),
-      duration: 45,
-      isSelected: false,
-      insightScore: 87,
-    },
-    {
-      id: '2',
-      title: '제품 개발 미팅',
-      date: new Date(2025, 3, 26),
-      duration: 32,
-      isSelected: true,
-      insightScore: 92,
-    },
-    {
-      id: '3',
-      title: '분기별 예산 회의',
-      date: new Date(2025, 3, 22),
-      duration: 58,
-      isSelected: false,
-      insightScore: 76,
-    },
-  ]);
+  const [showDocumentPanel, setShowDocumentPanel] = useState(false);  // State for meetings in the left sidebar
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
+  const [relatedDocuments, setRelatedDocuments] = useState<Document[]>([]);
+  const [selectedReport, setSelectedReport] = useState<any>(null);
+  
+  // 직접 API를 호출하여 회의 목록을 가져오는 함수
+  const fetchMeetingsDirectly = async () => {
+    try {
+      console.log('회의 목록 가져오기 시작 (직접 API 호출)');
+      const response = await fetch('http://localhost:8000/api/meetings');
+      const data = await response.json();
+      console.log('서버에서 받아온 회의 데이터:', data);
+      
+      // 회의 데이터 형식 확인 (meetings 또는 배열)
+      const meetingsData = data.meetings || data || [];
+      
+      // 반환된 데이터가 없으면 빈 배열 사용
+      if (!Array.isArray(meetingsData) || meetingsData.length === 0) {
+        console.log('반환된 회의 데이터가 없음');
+        setMeetings([]);
+        return;
+      }
+      
+      // DB에서 가져온 데이터를 Meeting 타입으로 변환
+      const formattedMeetings: Meeting[] = meetingsData.map((m: any, idx: number) => {
+        console.log('개별 회의 데이터:', m); // 개별 회의 데이터 구조 확인
+        
+        // 회의 ID 처리
+        const id = m.meeting_id || m.id || String(idx);
+        
+        // 회의 제목 처리
+        const title = m.title || '제목 없음';
+        
+        // 회의 날짜 처리
+        const dateValue = m.meeting_date || m.date || Date.now();
+        let date;
+        try {
+          date = new Date(dateValue);
+          // 유효한 날짜인지 확인
+          if (isNaN(date.getTime())) {
+            date = new Date();
+          }
+        } catch (e) {
+          console.error('회의 날짜 변환 오류:', e);
+          date = new Date();
+        }
+        
+        // 회의 시간 처리 (분 단위)
+        const duration = parseInt(String(m.duration_minutes || m.duration || 0), 10);
+        
+        // 인사이트 점수 처리
+        const insightScore = m.insight_score || Math.floor(Math.random() * 30) + 70;
+        
+        return {
+          id,
+          title,
+          date,
+          duration,
+          isSelected: false,
+          insightScore
+        };
+      });
+      
+      console.log('변환된 회의 데이터:', formattedMeetings);
+      setMeetings(formattedMeetings);
+      
+      // 초기화면을 유지하기 위해 자동 선택 코드 제거
+      
+      return formattedMeetings;
+    } catch (error) {
+      console.error('회의 목록 불러오기 실패:', error);
+      return [];
+    }
+  }; // 선택된 회의의 최종 보고서
 
   // 실시간 AI 관련 상태
   const [liveKeywords, setLiveKeywords] = useState<string[]>([]);
@@ -132,7 +180,11 @@ const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // const animationFrameRef = useRef<number | null>(null); // REMOVED - Moved to RealtimeVisualization
 
-  // REMOVED Waveform visualization useEffect - Moved to RealtimeVisualization
+  // 회의 목록 가져오기 useEffect
+  useEffect(() => {
+    console.log('회의 목록 가져오기 useEffect 실행');
+    fetchMeetingsDirectly();
+  }, []); // 컴포넌트 마운트 시 실행
 
   // 실시간 키워드 & 감정 분석 효과
   useEffect(() => {
@@ -513,13 +565,184 @@ const App: React.FC = () => {
     setMenuOpen(menuOpen === id ? null : id);
   };
 
-  const handleMeetingSelect = (id: string) => {
-    setMeetings(meetings.map(meeting => ({
-      ...meeting,
-      isSelected: meeting.id === id
-    })));
-    // Optionally reset state when selecting a different meeting
-    // handleRecordToggle(); // If you want to stop/reset when switching meetings
+  // 파일 이름을 기반으로 문서 형식 추측
+  const inferDocumentType = (filePath: string): 'pdf' | 'doc' | 'image' | 'text' | 'other' => {
+    if (!filePath) return 'other';
+    const lowerPath = filePath.toLowerCase();
+    if (lowerPath.endsWith('.pdf')) return 'pdf';
+    if (lowerPath.endsWith('.doc') || lowerPath.endsWith('.docx')) return 'doc';
+    if (lowerPath.endsWith('.jpg') || lowerPath.endsWith('.jpeg') || lowerPath.endsWith('.png')) return 'image';
+    if (lowerPath.endsWith('.txt') || lowerPath.endsWith('.md')) return 'text';
+    return 'other';
+  };
+
+  const handleMeetingSelect = async (id: string) => {
+    console.log('[App] 회의 선택:', id);
+    
+    // 회의 목록에서 선택 상태 변경
+    setMeetings(prevMeetings => {
+      const updatedMeetings = prevMeetings.map(meeting => ({
+        ...meeting,
+        isSelected: meeting.id === id
+      }));
+      console.log('[App] 업데이트된 회의 목록:', updatedMeetings);
+      return updatedMeetings;
+    });
+    
+    // 현재 스텝을 4단계(미팅 상세 보기)로 설정
+    setCurrentStep(4);
+    
+    // 모든 패널 표시 - 문서, 인사이트, 보고서 등을 함께 보여주기 위함
+    setShowDocumentPanel(true);
+    
+    // 파란색 테두리가 표시되도록 AI 하이라이트 모드 활성화
+    setAiHighlightMode(true);
+    
+    // 회의 상세 정보 가져오기
+    try {
+      console.log('[App] 회의 상세 정보 가져오기 시작:', id);
+      
+      // API 호출을 직접 수행하여 바로 가져오기 (캐시 방지)
+      const response = await fetch(`http://localhost:8000/api/meetings/${id}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
+      });
+      const data = await response.json();
+      console.log('[App] 회의 상세 정보:', data);
+      
+      // 가져온 회의 데이터를 상태에 저장
+      if (data && data.meeting) {
+        // 선택된 회의 정보 저장
+        setSelectedMeeting(data.meeting);
+        
+        // 관련 문서 처리
+        if (data.documents && Array.isArray(data.documents)) {
+          console.log('[App] 문서 데이터:', data.documents);
+          const docs = data.documents.map((doc: any) => ({
+            id: doc.document_id,
+            title: doc.document_title,
+            date: new Date(data.meeting.meeting_date),
+            type: inferDocumentType(doc.document_file_path),
+            filePath: doc.document_file_path,
+            score: doc.similarity_score
+          }));
+          setRelatedDocuments(docs);
+          
+          // 문서가 있으면 항상 문서 패널 표시
+          setShowDocumentPanel(true);
+          // documents 상태도 업데이트 (RightSidebar에서 사용하는 상태)
+          setDocuments(docs);
+        }
+        
+        // 핵심 인사이트 처리
+        if (data.insights && Array.isArray(data.insights)) {
+          console.log('[App] 인사이트 데이터:', data.insights);
+          // 인사이트 처리
+          // 인사이트 형식이 다양할 수 있으므로 두 가지 방식 모두 시도
+          
+          let insightsProcessed = false;
+          
+          // 1. 직접 인사이트 텍스트를 사용하는 경우 (JSON 파싱 없이)
+          try {
+            console.log('[App] 인사이트 데이터 형식 확인:', data.insights);
+            const insights = data.insights.map((ins: any, idx: number) => ({
+              id: ins.insight_id || String(idx),
+              insight: ins.insight_text, // insight_text를 insight로 매핑
+              text: ins.insight_text,    // Frontend_v1 호환성 유지
+              score: 0.9 // 고정 점수
+            }));
+            setKeyInsights(insights);
+            
+            // 인사이트가 있으면 항상 표시
+            setShowAIInsights(insights.length > 0);
+            
+            console.log('[App] 변환된 인사이트:', insights);
+            insightsProcessed = true;
+          } catch (error) {
+            console.error('[App] 인사이트 처리 중 오류:', error);
+          }
+          
+          // 2. JSON 문자열로 저장된 경우 시도 (처음 시도가 실패했을 경우에만)
+          if (!insightsProcessed) {
+            try {
+              // insights 필드의 첫 번째 항목의 insight_text를 파싱
+              const insightsData = JSON.parse(data.insights[0].insight_text);
+              
+              // insightsData에서 필요한 정보 추출하여 설정
+              if (insightsData) {
+                // 키 밸류 형태로 저장된 경우 (ex: {'1': {...}, '2': {...}})
+                if (typeof insightsData === 'object' && !Array.isArray(insightsData)) {
+                  const formattedInsights = Object.entries(insightsData).map(([key, value]: [string, any]) => ({
+                    id: `insight-${key}`,
+                    insight: value.insight || value.text || '',
+                    score: value.score || value.confidence || 0.5
+                  }));
+                  setKeyInsights(formattedInsights);
+                  setShowAIInsights(true);
+                } 
+                // 배열 형태로 저장된 경우
+                else if (Array.isArray(insightsData)) {
+                  const formattedInsights = insightsData.map((insight: any, index: number) => ({
+                    id: `insight-${index}`,
+                    insight: insight.insight || insight.text || '',
+                    score: insight.score || insight.confidence || 0.5
+                  }));
+                  setKeyInsights(formattedInsights);
+                  setShowAIInsights(true);
+                }
+              }
+            } catch (innerError) {
+              console.error('[App] JSON 파싱 인사이트 처리 중 오류:', innerError);
+              // 두 방법 모두 실패하면 빈 배열로 초기화
+              setKeyInsights([]);
+              setShowAIInsights(false);
+            }
+          }
+        } else {
+          // 인사이트 데이터가 없을 경우
+          setKeyInsights([]);
+          setShowAIInsights(false);
+        }
+        
+        // 보고서 처리
+        if (data.report) {
+          console.log('[App] 보고서 데이터:', data.report);
+          setSelectedReport(data.report);
+          
+          // 보고서 내용이 HTML로 제공되는 경우
+          if (data.report.report_content) {
+            setGeneratedHtml(data.report.report_content);
+          }
+        } else {
+          setSelectedReport(null);
+        }
+        
+        // 회의 STT 텍스트가 있지만 보고서가 없는 경우, 간단한 HTML 생성
+        if (data.meeting.stt_text && (!data.report || !data.report.report_content)) {
+          const sttText = data.meeting.stt_text;
+          const simpleHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+              <h1 style="color: #333;">${data.meeting.title || '회의 제목 없음'}</h1>
+              <p style="color: #666;"><strong>날짜:</strong> ${new Date(data.meeting.meeting_date).toLocaleDateString('ko-KR')}</p>
+              <p style="color: #666;"><strong>시간:</strong> ${data.meeting.duration_minutes || 0}분</p>
+              <div style="margin-top: 20px; line-height: 1.6;">
+                <h2 style="color: #444;">회의 내용</h2>
+                <p>${sttText}</p>
+              </div>
+            </div>
+          `;
+          setGeneratedHtml(simpleHtml);
+        }
+      } else {
+        console.error('[App] 회의 데이터 형식이 올바르지 않음:', data);
+      }
+    } catch (error) {
+      console.error('[App] 회의 상세 정보 가져오기 실패:', error);
+    }
   };
 
   const formatTime = (seconds: number) => {
