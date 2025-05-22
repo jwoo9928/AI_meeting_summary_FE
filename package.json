@@ -12,8 +12,10 @@
   "dependencies": {
     "@headlessui/react": "^2.2.2",
     "@tailwindcss/vite": "^4.1.4",
+    "@tanstack/react-query": "^5.76.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.9.2",
+    "jotai": "^2.12.4",
     "lucide-react": "^0.503.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
