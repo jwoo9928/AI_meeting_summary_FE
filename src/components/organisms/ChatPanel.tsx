@@ -1,21 +1,16 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { UploadCloud, Send, ChevronDown, ChevronRight } from 'lucide-react';
+import { UploadCloud, ChevronDown, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSetAtom } from 'jotai';
 import { useMutation } from '@tanstack/react-query';
 import { docsInfoAtom } from '../../store/atoms';
 import { ProcessDataResponse } from '../../types';
 import APIController from '../../controllers/APIController';
 import FileUploadOptionsModal from '../molecules/FileUploadOptionsModal'; // Import the modal
+import { PromptInputWithActions } from '../molecules/PromptInput';
+import MessageBasic from '../molecules/ChatSection';
 
-interface ChatPanelProps {
-    // onFileUpload?: (file: File) => void; // We'll handle upload internally now
-    onMessageSend?: (message: string) => void;
-}
-
-const ChatPanel: React.FC<ChatPanelProps> = ({
-    onMessageSend
-}) => {
-    const [message, setMessage] = useState('');
+const ChatPanel: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const setDocsInfo = useSetAtom(docsInfoAtom);
 
@@ -137,19 +132,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         fileInputRef.current?.click();
     }, []);
 
-    const handleMessageSubmit = useCallback(() => {
-        if (message.trim()) {
-            onMessageSend?.(message.trim());
-            setMessage('');
-        }
-    }, [message, onMessageSend]);
-
-    const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            handleMessageSubmit();
-        }
-    }, [handleMessageSubmit]);
 
     return (
         <div className="flex flex-col h-full">
@@ -180,77 +162,88 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         </h2>
                         {isSummaryVisible ? <ChevronDown className="w-5 h-5 text-gray-600" /> : <ChevronRight className="w-5 h-5 text-gray-600" />}
                     </div>
-                    {isSummaryVisible && (
-                        <div className="mt-2 space-y-3">
-                            {summary && (
-                                <div>
-                                    <h3 className="text-sm font-medium text-gray-700 mb-1">요약</h3>
-                                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{summary}</p>
-                                </div>
-                            )}
-                            {actionItems && actionItems.length > 0 && (
-                                <div>
-                                    <h3 className="text-sm font-medium text-gray-700 mb-1">실행 항목</h3>
-                                    <ul className="list-disc list-inside pl-1 space-y-1">
-                                        {actionItems.map((item, index) => (
-                                            <li key={index} className="text-sm text-gray-600">{item}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    <AnimatePresence>
+                        {isSummaryVisible && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2, ease: "easeInOut" }}
+                                style={{ overflow: 'hidden' }}
+                                className="mt-2 space-y-3"
+                            >
+                                {summary && (
+                                    <div>
+                                        <h3 className="text-sm font-medium text-gray-700 mb-1">요약</h3>
+                                        <p className="text-sm text-gray-600 whitespace-pre-wrap">{summary}</p>
+                                    </div>
+                                )}
+                                {actionItems && actionItems.length > 0 && (
+                                    <div>
+                                        <h3 className="text-sm font-medium text-gray-700 mb-1">실행 항목</h3>
+                                        <ul className="list-disc list-inside pl-1 space-y-1">
+                                            {actionItems.map((item, index) => (
+                                                <li key={index} className="text-sm text-gray-600">{item}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             )}
 
             {/* Main Content - Conditional rendering for upload prompt */}
             {/* Show upload prompt only if no summary/action items are loaded yet */}
-            {!(summary || actionItems) && !processDocumentMutation.isPending && (
-                <main className="flex-1 flex flex-col items-center justify-center px-6 py-5">
-                    <div className="w-full max-w-2xl space-y-8">
-                        {/* Upload Section */}
-                        <div className="text-center space-y-6">
-                            <div
-                                className="relative border-2 border-dashed border-gray-300 rounded-lg p-12 hover:border-blue-400 transition-colors cursor-pointer bg-white"
-                                onDrop={handleDrop}
-                                onDragOver={handleDragOver}
-                                onClick={handleUploadClick}
-                            >
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    className="hidden"
-                                    onChange={handleFileInputChange}
-                                    accept="audio/*,text/*,.pdf"
-                                />
+            <div className="flex-1 overflow-y-auto px-6 py-5"> {/* Scrollable chat area */}
+                {!(summary || actionItems) && !processDocumentMutation.isPending && (
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <div className="w-full max-w-2xl space-y-8">
+                            {/* Upload Section */}
+                            <div className="text-center space-y-6">
+                                <div
+                                    className="relative border-2 border-dashed border-gray-300 rounded-lg p-12 hover:border-blue-400 transition-colors cursor-pointer bg-white"
+                                    onDrop={handleDrop}
+                                    onDragOver={handleDragOver}
+                                    onClick={handleUploadClick}
+                                >
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        className="hidden"
+                                        onChange={handleFileInputChange}
+                                        accept="audio/*,text/*,.pdf"
+                                    />
 
-                                <div className="flex flex-col items-center space-y-4">
                                     <div className="flex flex-col items-center space-y-4">
-                                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                                            <UploadCloud className="w-8 h-8 text-blue-600" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-lg font-medium text-gray-900 mb-2">
-                                                시작하려면 소스 추가
-                                            </h2>
-                                            <p className="text-sm text-gray-500">
-                                                파일을 드래그하여 놓거나 클릭하여 업로드하세요 (PDF, 음성, 텍스트)
-                                            </p>
+                                        <div className="flex flex-col items-center space-y-4">
+                                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                                                <UploadCloud className="w-8 h-8 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-lg font-medium text-gray-900 mb-2">
+                                                    시작하려면 소스 추가
+                                                </h2>
+                                                <p className="text-sm text-gray-500">
+                                                    파일을 드래그하여 놓거나 클릭하여 업로드하세요 (PDF, 음성, 텍스트)
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div> {/* This closes "text-center space-y-6" */}
-                    </div> {/* This closes "w-full max-w-2xl space-y-8" */}
-                </main>
-            )}
-            {/* If there is summary/action items, provide some padding or a different view for the chat messages area */}
-            {(summary || actionItems) && !processDocumentMutation.isPending && (
-                <main className="flex-1 px-6 py-5">
-                    {/* This area would be for chat messages if they were implemented */}
-                    {/* For now, it's an empty space below the summary/action items */}
-                </main>
-            )}
+                        </div>
+                    </div>
+                )}
+                {/* If there is summary/action items, provide some padding or a different view for the chat messages area */}
+                {(summary || actionItems) && !processDocumentMutation.isPending && (
+                    <div className="h-full"> {/* This div will contain chat messages */}
+                        {/* This area would be for chat messages if they were implemented */}
+                        <MessageBasic />
+                    </div>
+                )}
+            </div>
 
             {/* File Upload Options Modal */}
             <FileUploadOptionsModal
@@ -263,29 +256,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             />
 
             {/* Input Section */}
-            <div className="px-6 py-4 bg-white border-t border-gray-200">
-                <div className="max-w-4xl mx-auto">
-                    <div className="relative">
-                        <textarea
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="메시지를 입력하세요..."
-                            className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            rows={1}
-                            style={{ minHeight: '48px', maxHeight: '120px' }}
-                        />
-
-                        <button
-                            onClick={handleMessageSubmit}
-                            disabled={!message.trim()}
-                            className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-gray-400 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <Send className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <PromptInputWithActions />
         </div>
     );
 };

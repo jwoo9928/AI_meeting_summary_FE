@@ -70,12 +70,6 @@ const App: React.FC = () => {
     });
   };
 
-
-  // --- Source Management (formerly Studio Management) ---
-  // const handleSelectSource = useCallback((id: string) => { // Managed by Jotai
-  //   setSelectedSourceId(id);
-  // }, []);
-
   const handleAddSourceSubmit = useCallback((name: string) => { // Renamed from handleAddStudioSubmit
     const newSource: DocumentSource = { // Assuming new sources are DocumentSource
       id: `source-${Date.now()}`,
@@ -101,20 +95,6 @@ const App: React.FC = () => {
 
   // const openAllDocumentsModal = () => setIsAllDocumentsModalOpen(true); // Unused
   const closeAllDocumentsModal = () => setIsAllDocumentsModalOpen(false);
-
-  // --- Report Management for RightSidebar ---
-  // const handleSelectReport = useCallback((reportId: string) => { // Unused
-  // setSelectedReportId(reportId);
-  // }, []);
-
-  // --- Metadata Modal and Processing Flow ---
-  // const handleAudioFileReadyForMetadata = (file: File) => { // This function is no longer used as ChatPanel handles uploads
-  //   if (!selectedDocId) { 
-  //     alert("문서를 먼저 선택하거나 생성해주세요."); 
-  //     return;
-  //   }
-  //   console.log("Audio file ready for metadata (App.tsx):", file.name, "for source:", selectedDocId);
-  // };
 
   const handleShowBriefing = useCallback(async () => {
     if (selectedDocId && !fetchedDocInfoIds.has(selectedDocId)) {
