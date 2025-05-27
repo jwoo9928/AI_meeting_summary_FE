@@ -1,32 +1,75 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSetAtom } from 'jotai';
 import Modal from './Modal';
 import Button from '../atoms/Button';
-import Text from '../atoms/Text'; // If needed for any text inside
+import APIController from '../../controllers/APIController';
+import { documentSummaryAtom } from '../../store/atoms';
+import { DocumentSummary, OriginFile, ProcessDataResponse } from '../../types';
 
 interface NewStudioModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (name: string) => void;
 }
 
-const NewStudioModal: React.FC<NewStudioModalProps> = ({ isOpen, onClose, onSubmit }) => {
+const NewStudioModal: React.FC<NewStudioModalProps> = ({ isOpen, onClose }) => {
     const [studioName, setStudioName] = useState('');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const setDocumentSummary = useSetAtom(documentSummaryAtom);
 
     useEffect(() => {
         if (isOpen) {
-            setStudioName(''); // Reset name when modal opens
+            setStudioName('');
+            setSelectedFile(null);
+            setIsSubmitting(false);
         }
     }, [isOpen]);
 
-    const handleSubmit = () => {
-        if (studioName.trim()) {
-            onSubmit(studioName.trim());
-            onClose(); // Close modal after submission
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files && event.target.files[0]) {
+            setSelectedFile(event.target.files[0]);
         } else {
-            // Optionally, show an error message or prevent submission
-            alert("스튜디오 이름을 입력해주세요.");
+            setSelectedFile(null);
         }
     };
+
+    const handleSubmit = useCallback(async () => {
+        if (!studioName.trim()) {
+            alert("스튜디오 이름을 입력해주세요.");
+            return;
+        }
+        if (!selectedFile) {
+            alert("파일을 선택해주세요.");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const processDataResponse: ProcessDataResponse = await APIController.processDocument(selectedFile, studioName.trim());
+
+            const originFile: OriginFile = {
+                file_name: selectedFile.name,
+                file_size: selectedFile.size,
+                file_type: selectedFile.type || selectedFile.name.split('.').pop() || 'unknown',
+                link: URL.createObjectURL(selectedFile), // Temporary local URL
+            };
+
+            const newDocumentSummary: DocumentSummary = {
+                docs_info: processDataResponse.docs_info,
+                summary: processDataResponse.summary,
+                action_items: processDataResponse.action_items,
+                origin_file: originFile,
+            };
+
+            setDocumentSummary(newDocumentSummary);
+            onClose();
+        } catch (error) {
+            console.error("Error processing document:", error);
+            alert(`문서 처리 중 오류 발생: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [studioName, selectedFile, onClose, setDocumentSummary]);
 
     return (
         <Modal
@@ -35,15 +78,21 @@ const NewStudioModal: React.FC<NewStudioModalProps> = ({ isOpen, onClose, onSubm
             title="새 스튜디오 생성"
             footer={
                 <>
-                    <Button variant="ghost" onClick={onClose}>취소</Button>
-                    <Button variant="primary" onClick={handleSubmit} disabled={!studioName.trim()}>생성</Button>
+                    <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>취소</Button>
+                    <Button
+                        variant="primary"
+                        onClick={handleSubmit}
+                        disabled={!studioName.trim() || !selectedFile || isSubmitting}
+                    >
+                        {isSubmitting ? "생성 중..." : "생성"}
+                    </Button>
                 </>
             }
         >
             <div className="space-y-4">
                 <div>
                     <label htmlFor="studioName" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                        스튜디오 이름
+                        스튜디오 이름 (회의 정보)
                     </label>
                     <input
                         type="text"
@@ -53,7 +102,26 @@ const NewStudioModal: React.FC<NewStudioModalProps> = ({ isOpen, onClose, onSubm
                         placeholder="예: 1분기 마케팅 전략"
                         className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 focus:ring-blue-500 focus:border-blue-500"
                         autoFocus
+                        disabled={isSubmitting}
                     />
+                </div>
+                <div>
+                    <label htmlFor="fileUpload" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                        문서 파일
+                    </label>
+                    <input
+                        type="file"
+                        id="fileUpload"
+                        onChange={handleFileChange}
+                        className="w-full text-sm text-gray-500 dark:text-gray-400
+                                   file:mr-4 file:py-2 file:px-4
+                                   file:rounded-md file:border-0
+                                   file:text-sm file:font-semibold
+                                   file:bg-blue-50 file:text-blue-700
+                                   hover:file:bg-blue-100 dark:file:bg-gray-700 dark:file:text-blue-300 dark:hover:file:bg-gray-600"
+                        disabled={isSubmitting}
+                    />
+                    {selectedFile && <p className="text-xs text-gray-500 mt-1">선택된 파일: {selectedFile.name}</p>}
                 </div>
             </div>
         </Modal>

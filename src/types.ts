@@ -45,3 +45,22 @@ export interface DocumentDetail {
 export interface GetDocumentInfoResponse {
     [docId: string]: DocumentDetail;
 }
+
+export type DocsInfo = {
+    file: string;
+    ids: string;
+};
+
+export type OriginFile = {
+    file_name: string;
+    file_size: number;   // in bytes
+    file_type: string;   // e.g., 'pdf'
+    link: string;        // download link
+};
+
+export type DocumentSummary = {
+    docs_info: DocsInfo[];
+    summary: string;
+    action_items: string[];
+    origin_file: OriginFile;
+};

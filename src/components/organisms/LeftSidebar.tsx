@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react'; // Added useEffect
+import React, { useEffect, useState } from 'react'; // Added useState
 import { Plus, Search, PanelLeftClose, PanelRightClose, FileText, ChevronDown, Diamond } from 'lucide-react';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'; // Added useSetAtom
-import { DocumentSource, DocInfo } from '../../types'; // Added DocInfo
-import { selectedDocIdAtom, docsInfoAtom, fetchedDocInfoIdsAtom, docSummariesAtom } from '../../store/atoms'; // Added fetchedDocInfoIdsAtom, docSummariesAtom
-import APIController from '../../controllers/APIController'; // Added APIController
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { DocumentSource, DocsInfo } from '../../types'; // Changed DocInfo to DocsInfo
+import { selectedDocIdAtom, documentSummaryAtom, fetchedDocInfoIdsAtom, docSummariesAtom } from '../../store/atoms'; // Changed docsInfoAtom to documentSummaryAtom
+import APIController from '../../controllers/APIController';
+import NewStudioModal from '../molecules/NewStudioModal'; // Import NewStudioModal
 
 interface SourceItemProps {
     source: DocumentSource;
@@ -22,13 +23,11 @@ const SourceItem: React.FC<SourceItemProps> = React.memo(({ source, isSelected, 
         const fetchDocInfo = async () => {
             if (isExpanded && source.id && !fetchedDocInfoIds.has(source.id)) {
                 try {
-                    // console.log(`LeftSidebar: Fetching summary for ${source.id}`);
                     const responseData = await APIController.getDocumentInfo(source.id);
                     const docDetail = responseData[source.id];
                     if (docDetail && docDetail.summary) {
                         setDocSummaries(prev => ({ ...prev, [source.id]: docDetail.summary }));
                     } else {
-                        // Handle case where docId might not be in response or summary is missing
                         console.warn(`LeftSidebar: Summary not found for ${source.id} in API response.`);
                         setDocSummaries(prev => ({ ...prev, [source.id]: "요약 정보를 찾을 수 없습니다." }));
                     }
@@ -37,7 +36,6 @@ const SourceItem: React.FC<SourceItemProps> = React.memo(({ source, isSelected, 
                         newSet.add(source.id);
                         return newSet;
                     });
-                    // console.log(`LeftSidebar: Summary fetched for ${source.id}`, docDetail?.summary);
                 } catch (error) {
                     console.error(`LeftSidebar: Failed to fetch summary for ${source.id}:`, error);
                     setDocSummaries(prev => ({ ...prev, [source.id]: "요약 정보를 불러오는데 실패했습니다." }));
@@ -120,25 +118,22 @@ const SourceItem: React.FC<SourceItemProps> = React.memo(({ source, isSelected, 
 });
 
 interface LeftSidebarProps {
-    // sources: DocumentSource[]; // Removed, as docsInfoAtom is now the source
-    onAddSource: () => void;
     isCollapsed: boolean;
     onToggleCollapse: () => void;
-    expandedDocId: string | null; // New prop
-    onToggleExpand: (id: string) => void; // New prop
+    expandedDocId: string | null;
+    onToggleExpand: (id: string) => void;
 }
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
-    // sources: initialSources, // Removed
-    onAddSource,
     isCollapsed,
     onToggleCollapse,
-    expandedDocId, // Use prop
-    onToggleExpand // Use prop
+    expandedDocId,
+    onToggleExpand
 }) => {
     const [selectedDocId, setSelectedDocId] = useAtom(selectedDocIdAtom);
-    const apiDocs = useAtomValue(docsInfoAtom);
-    const docSummaries = useAtomValue(docSummariesAtom); // Added to read summaries
+    const documentSummary = useAtomValue(documentSummaryAtom);
+    const docSummaries = useAtomValue(docSummariesAtom);
+    const [isNewStudioModalOpen, setIsNewStudioModalOpen] = useState(false); // State for NewStudioModal
 
     const handleSelectSource = (id: string) => {
         setSelectedDocId(prevId => (prevId === id ? null : id));
@@ -152,14 +147,17 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         return 'file'; // Default type
     };
 
-    const allDocumentSources: DocumentSource[] = React.useMemo(() => (apiDocs.length > 0
-        ? apiDocs.map((doc: DocInfo) => ({
-            id: doc.ids,
-            title: doc.file,
-            type: getFileTypeFromName(doc.file),
-            summary: docSummaries[doc.ids] || '', // Get summary from docSummariesAtom
-        }))
-        : []), [apiDocs, docSummaries]); // Added docSummaries to dependency array
+    const allDocumentSources: DocumentSource[] = React.useMemo(() => {
+        const currentDocsInfo = documentSummary?.docs_info || [];
+        return currentDocsInfo.length > 0
+            ? currentDocsInfo.map((doc: DocsInfo) => ({
+                id: doc.ids,
+                title: doc.file,
+                type: getFileTypeFromName(doc.file),
+                summary: docSummaries[doc.ids] || '',
+            }))
+            : [];
+    }, [documentSummary, docSummaries]);
 
     const itemsToRenderInList = React.useMemo(() => {
         if (!expandedDocId) {
@@ -182,116 +180,115 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             : 'w-80 p-4';
 
     return (
-        <aside className={`h-full flex flex-col bg-white transition-all duration-300 ease-in-out shadow-xl rounded-2xl ${sidebarWidthClass}`}>
-            {/* Header */}
-            <div className={`flex items-center ${isCollapsed ? 'justify-center h-10 mb-3' : 'justify-between mb-5 h-10 border-b border-gray-200'}`}>
-                {!isCollapsed && (
-                    <h2 className="text-base font-semibold text-gray-900">출처</h2>
-                )}
-                <button
-                    onClick={onToggleCollapse}
-                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
-                    aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                >
-                    {isCollapsed ? (
-                        <PanelRightClose className="w-5 h-5" />
-                    ) : (
-                        <PanelLeftClose className="w-5 h-5" />
+        <>
+            <aside className={`h-full flex flex-col bg-white transition-all duration-300 ease-in-out shadow-xl rounded-2xl ${sidebarWidthClass}`}>
+                <div className={`flex items-center ${isCollapsed ? 'justify-center h-10 mb-3' : 'justify-between mb-5 h-10 border-b border-gray-200'}`}>
+                    {!isCollapsed && (
+                        <h2 className="text-base font-semibold text-gray-900">출처</h2>
                     )}
-                </button>
-            </div>
-
-            {/* Content */}
-            {!isCollapsed ? (
-                // flex-1 and min-h-0 to ensure the content area takes available space and allows scrolling
-                <div className="flex-1 flex flex-col min-h-0">
-                    {/* Action Buttons - styled to match image */}
-                    <div className="grid grid-cols-2 gap-2 mb-5">
-                        <button
-                            onClick={onAddSource}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors bg-white"
-                        >
-                            <Plus className="w-4 h-4 text-gray-700" />
-                            <span className="text-sm font-medium text-gray-800">추가</span>
-                        </button>
-                        <button className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors bg-white">
-                            <Search className="w-4 h-4 text-gray-700" />
-                            <span className="text-sm font-medium text-gray-800">탐색</span>
-                        </button>
-                    </div>
-
-                    {/* Sources List - flex-1 and min-h-0 for proper scrolling */}
-                    <div className="flex-1 overflow-y-auto min-h-0 pr-1">
-                        {itemsToRenderInList.length > 0 ? (
-                            <div className="space-y-2">
-                                {itemsToRenderInList.map((source) => (
-                                    <SourceItem
-                                        key={source.id}
-                                        source={source}
-                                        isSelected={selectedDocId === source.id}
-                                        onSelect={handleSelectSource}
-                                        isExpanded={expandedDocId === source.id}
-                                        onToggleExpand={onToggleExpand}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center text-center pt-10 pb-4">
-                                <FileText className="w-10 h-10 text-gray-400 mb-3" />
-                                <h3 className="text-sm font-semibold text-gray-700 mb-1.5">
-                                    저장된 소스가 여기에 표시됩니다
-                                </h3>
-                                <p className="text-xs text-gray-500 leading-snug max-w-[220px]">
-                                    위의 소스 추가를 클릭하여 PDF, 웹사이트, 텍스트, 동영상 또는 오디오 파일을 추가하세요. 또는 Google Drive에서 파일을 직접 가져올 수 있습니다.
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            ) : (
-                // Collapsed state - Show document icons and an add button
-                <div className="flex-1 flex flex-col items-center pt-3 space-y-3"> {/* Added pt-3 and space-y-3 */}
-                    {/* Add Source Button */}
                     <button
-                        onClick={onAddSource}
-                        className="p-2.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-800"
-                        aria-label="Add new source"
-                        title="Add new source"
+                        onClick={onToggleCollapse}
+                        className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                     >
-                        <Plus className="w-5 h-5" /> {/* Slightly smaller icon for collapsed view consistency */}
+                        {isCollapsed ? (
+                            <PanelRightClose className="w-5 h-5" />
+                        ) : (
+                            <PanelLeftClose className="w-5 h-5" />
+                        )}
                     </button>
-
-                    {/* Document Icons - Show icons from allDocumentSources if available */}
-                    {allDocumentSources.map(source => {
-                        const isPdf = source.type === 'pdf' || source.title.toLowerCase().includes('.pdf');
-                        // For collapsed view, clicking an icon should expand the sidebar and the item
-                        const handleIconClick = () => {
-                            if (isCollapsed) { // Should always be true here, but good for clarity
-                                onToggleCollapse(); // Expand sidebar
-                            }
-                            onToggleExpand(source.id); // Expand this specific document
-                        };
-                        return (
-                            <button
-                                key={source.id}
-                                onClick={handleIconClick}
-                                className="p-2.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-800 w-full flex justify-center"
-                                aria-label={`Open ${source.title}`}
-                                title={source.title}
-                            >
-                                {isPdf ? (
-                                    <div className="w-5 h-5 bg-red-500 rounded-sm flex items-center justify-center flex-shrink-0">
-                                        <span className="text-white text-[10px] font-bold">PDF</span>
-                                    </div>
-                                ) : (
-                                    <FileText className="w-5 h-5" />
-                                )}
-                            </button>
-                        );
-                    })}
                 </div>
-            )}
-        </aside>
+
+                {!isCollapsed ? (
+                    <div className="flex-1 flex flex-col min-h-0">
+                        {/* Action Buttons */}
+                        <div className="grid grid-cols-2 gap-2 mb-5">
+                            <button
+                                onClick={() => setIsNewStudioModalOpen(true)} // Open modal
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors bg-white"
+                            >
+                                <Plus className="w-4 h-4 text-gray-700" />
+                                <span className="text-sm font-medium text-gray-800">추가</span>
+                            </button>
+                            <button className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors bg-white">
+                                <Search className="w-4 h-4 text-gray-700" />
+                                <span className="text-sm font-medium text-gray-800">탐색</span>
+                            </button>
+                        </div>
+
+                        {/* Sources List */}
+                        <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+                            {itemsToRenderInList.length > 0 ? (
+                                <div className="space-y-2">
+                                    {itemsToRenderInList.map((source) => (
+                                        <SourceItem
+                                            key={source.id}
+                                            source={source}
+                                            isSelected={selectedDocId === source.id}
+                                            onSelect={handleSelectSource}
+                                            isExpanded={expandedDocId === source.id}
+                                            onToggleExpand={onToggleExpand}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center text-center pt-10 pb-4">
+                                    <FileText className="w-10 h-10 text-gray-400 mb-3" />
+                                    <h3 className="text-sm font-semibold text-gray-700 mb-1.5">
+                                        저장된 소스가 여기에 표시됩니다
+                                    </h3>
+                                    <p className="text-xs text-gray-500 leading-snug max-w-[220px]">
+                                        위의 소스 추가를 클릭하여 PDF, 웹사이트, 텍스트, 동영상 또는 오디오 파일을 추가하세요. 또는 Google Drive에서 파일을 직접 가져올 수 있습니다.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    // Collapsed state
+                    <div className="flex-1 flex flex-col items-center pt-3 space-y-3">
+                        <button
+                            onClick={() => setIsNewStudioModalOpen(true)} // Open modal
+                            className="p-2.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-800"
+                            aria-label="Add new source"
+                            title="Add new source"
+                        >
+                            <Plus className="w-5 h-5" />
+                        </button>
+                        {allDocumentSources.map(source => {
+                            const isPdf = source.type === 'pdf' || source.title.toLowerCase().includes('.pdf');
+                            const handleIconClick = () => {
+                                if (isCollapsed) {
+                                    onToggleCollapse();
+                                }
+                                onToggleExpand(source.id);
+                            };
+                            return (
+                                <button
+                                    key={source.id}
+                                    onClick={handleIconClick}
+                                    className="p-2.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-800 w-full flex justify-center"
+                                    aria-label={`Open ${source.title}`}
+                                    title={source.title}
+                                >
+                                    {isPdf ? (
+                                        <div className="w-5 h-5 bg-red-500 rounded-sm flex items-center justify-center flex-shrink-0">
+                                            <span className="text-white text-[10px] font-bold">PDF</span>
+                                        </div>
+                                    ) : (
+                                        <FileText className="w-5 h-5" />
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </aside>
+            <NewStudioModal
+                isOpen={isNewStudioModalOpen}
+                onClose={() => setIsNewStudioModalOpen(false)}
+            />
+        </>
     );
 };
 

@@ -3,19 +3,19 @@ import { UploadCloud, ChevronDown, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSetAtom } from 'jotai';
 import { useMutation } from '@tanstack/react-query';
-import { docsInfoAtom } from '../../store/atoms';
-import { ProcessDataResponse } from '../../types';
+import { documentSummaryAtom } from '../../store/atoms'; // Changed from docsInfoAtom
+import { ProcessDataResponse, DocumentSummary, OriginFile } from '../../types'; // Added DocumentSummary, OriginFile, DocsInfo
 import APIController from '../../controllers/APIController';
-import FileUploadOptionsModal from '../molecules/FileUploadOptionsModal'; // Import the modal
+import FileUploadOptionsModal from '../molecules/FileUploadOptionsModal';
 import { PromptInputWithActions } from '../molecules/PromptInput';
 import MessageBasic from '../molecules/ChatSection';
 
 const ChatPanel: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const setDocsInfo = useSetAtom(docsInfoAtom);
+    const setDocumentSummary = useSetAtom(documentSummaryAtom); // Changed from setDocsInfo
 
-    const [summary, setSummary] = useState<string | null>(null);
-    const [actionItems, setActionItems] = useState<string[] | null>(null);
+    const [summary, setSummary] = useState<string | null>(null); // This local state is for ChatPanel's display
+    const [actionItems, setActionItems] = useState<string[] | null>(null); // This local state is for ChatPanel's display
     const [isSummaryVisible, setIsSummaryVisible] = useState(true);
     const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -27,19 +27,34 @@ const ChatPanel: React.FC = () => {
         { file: File; meeting_info: string; language?: string } // Added language
     >({
         mutationFn: ({ file, meeting_info, language }) => APIController.processDocument(file, meeting_info, language),
-        onSuccess: (data) => {
+        onSuccess: (data, variables) => { // Added variables to access the originally uploaded file
             console.log("File upload success (useMutation):", data);
-            setDocsInfo(data.docs_info);
+
+            const uploadedFile = variables.file; // Get the file from mutation variables
+            const originFile: OriginFile = {
+                file_name: uploadedFile.name,
+                file_size: uploadedFile.size,
+                file_type: uploadedFile.type || uploadedFile.name.split('.').pop() || 'unknown',
+                link: URL.createObjectURL(uploadedFile), // Temporary local URL
+            };
+
+            const newDocumentSummary: DocumentSummary = {
+                docs_info: data.docs_info,
+                summary: data.summary,
+                action_items: data.action_items,
+                origin_file: originFile,
+            };
+            setDocumentSummary(newDocumentSummary);
+
+            // Keep local state for ChatPanel's own display of summary/action items
             setSummary(data.summary);
             setActionItems(data.action_items);
-            setIsSummaryVisible(true); // Show by default after successful upload
+            setIsSummaryVisible(true);
         },
         onError: (error) => {
             console.error("File upload error (useMutation):", error);
-            // Clear previous results on error
             setSummary(null);
             setActionItems(null);
-            setDocsInfo([]);
         },
     });
 
@@ -50,10 +65,10 @@ const ChatPanel: React.FC = () => {
         } else if (file.type === 'application/pdf') {
             type = 'pdf';
         } else if (file.type.startsWith('text/')) {
-            type = 'other'; // Or treat as 'text' if FileUploadOptionsModal handles it
+            type = 'other';
         }
 
-        if (type !== 'other' || file.type.startsWith('text/')) { // Allow text files even if categorized as 'other' for now
+        if (type !== 'other' || file.type.startsWith('text/')) {
             setSelectedFile(file);
             setFileTypeForModal(type);
             setIsOptionsModalOpen(true);
@@ -68,21 +83,15 @@ const ChatPanel: React.FC = () => {
         if (selectedFile) {
             if (fileTypeForModal === 'pdf' || fileTypeForModal === 'multiple-pdf') {
                 if (typeof meetingInfoOrConfirmation === 'boolean' && meetingInfoOrConfirmation === true) {
-                    // For PDF, we might have a different API or just log, 
-                    // or proceed with the same mutation if it handles PDF summarization etc.
-                    // Assuming for now we still want to process it for docs_info, summary, action_items.
-                    // The modal for PDF doesn't ask for meeting_info, so we provide a default.
                     console.log(`PDF file "${selectedFile.name}" confirmed for processing.`);
                     processDocumentMutation.mutate({
                         file: selectedFile,
-                        meeting_info: `PDF Upload: ${selectedFile.name}`, // Default meeting_info for PDF
-                        // language is not typically asked for PDF in this modal, but can be passed if available
+                        meeting_info: `PDF Upload: ${selectedFile.name}`,
                     });
                 } else {
                     console.error("PDF confirmation was not true, or type mismatch.");
                 }
             } else if (typeof meetingInfoOrConfirmation === 'string') {
-                // For audio or other types that require meetingInfo from the modal
                 processDocumentMutation.mutate({
                     file: selectedFile,
                     meeting_info: meetingInfoOrConfirmation,
@@ -140,7 +149,6 @@ const ChatPanel: React.FC = () => {
                 <h1 className="text-base font-semibold text-gray-900">채팅</h1>
             </header>
 
-            {/* Summary and Action Items Section */}
             {processDocumentMutation.isPending && (
                 <div className="px-6 py-3 text-center text-blue-600">
                     파일을 처리 중입니다...
@@ -194,13 +202,10 @@ const ChatPanel: React.FC = () => {
                 </div>
             )}
 
-            {/* Main Content - Conditional rendering for upload prompt */}
-            {/* Show upload prompt only if no summary/action items are loaded yet */}
-            <div className="flex-1 overflow-y-auto px-6 py-5"> {/* Scrollable chat area */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
                 {!(summary || actionItems) && !processDocumentMutation.isPending && (
                     <div className="flex flex-col items-center justify-center h-full">
                         <div className="w-full max-w-2xl space-y-8">
-                            {/* Upload Section */}
                             <div className="text-center space-y-6">
                                 <div
                                     className="relative border-2 border-dashed border-gray-300 rounded-lg p-12 hover:border-blue-400 transition-colors cursor-pointer bg-white"
@@ -215,7 +220,6 @@ const ChatPanel: React.FC = () => {
                                         onChange={handleFileInputChange}
                                         accept="audio/*,text/*,.pdf"
                                     />
-
                                     <div className="flex flex-col items-center space-y-4">
                                         <div className="flex flex-col items-center space-y-4">
                                             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
@@ -236,16 +240,13 @@ const ChatPanel: React.FC = () => {
                         </div>
                     </div>
                 )}
-                {/* If there is summary/action items, provide some padding or a different view for the chat messages area */}
                 {(summary || actionItems) && !processDocumentMutation.isPending && (
-                    <div className="h-full"> {/* This div will contain chat messages */}
-                        {/* This area would be for chat messages if they were implemented */}
+                    <div className="h-full">
                         <MessageBasic />
                     </div>
                 )}
             </div>
 
-            {/* File Upload Options Modal */}
             <FileUploadOptionsModal
                 isOpen={isOptionsModalOpen}
                 onClose={handleModalClose}

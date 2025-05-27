@@ -1,17 +1,11 @@
 import { atom } from 'jotai';
-import { DocInfo } from '../types'; // Import the DocInfo type
+import { DocInfo, DocumentSummary } from '../types'; // Import the DocInfo and DocumentSummary types
 
 /**
  * Atom to store the ID of the currently selected document.
  * It will be null if no document is selected.
  */
 export const selectedDocIdAtom = atom<string | null>(null);
-
-/**
- * Atom to store the list of document information received from the API.
- * It will be an empty array initially.
- */
-export const docsInfoAtom = atom<DocInfo[]>([]);
 
 /**
  * Atom to store the set of document IDs for which detailed info (like summary)
@@ -36,3 +30,15 @@ export const docDetailsAtom = atom<Record<string, import('../types').DocumentDet
  * has been explicitly clicked by the user in the RightSidebar.
  */
 export const activatedBriefingIdsAtom = atom<Set<string>>(new Set<string>());
+
+/**
+ * Atom to store the document summary data received from the processDocument API.
+ * It will be null initially.
+ */
+export const documentSummaryAtom = atom<DocumentSummary | null>(null);
+
+/**
+ * Atom to store the ID of the document whose detail view is open in the RightSidebar.
+ * It will be null if no detail view is open.
+ */
+export const rightSidebarDetailDocIdAtom = atom<string | null>(null);
