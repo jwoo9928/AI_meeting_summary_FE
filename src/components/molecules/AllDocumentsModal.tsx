@@ -5,7 +5,7 @@ import Text from '../atoms/Text';
 import Icon from '../atoms/Icon';
 import { FileText as PdfIcon } from 'lucide-react';
 import { DocumentSource, DocsInfo } from '../../types';
-import { documentSummaryAtom } from '../../store/atoms';
+import { processDataResponseAtom } from '../../store/atoms'; // Changed atom
 
 interface AllDocumentsModalProps {
     isOpen: boolean;
@@ -16,7 +16,7 @@ const AllDocumentsModal: React.FC<AllDocumentsModalProps> = ({
     isOpen,
     onClose,
 }) => {
-    const documentSummary = useAtomValue(documentSummaryAtom);
+    const processDataResponse = useAtomValue(processDataResponseAtom); // Changed atom
 
     const getFileTypeFromName = (fileName: string): string => {
         const extension = fileName.split('.').pop()?.toLowerCase();
@@ -25,13 +25,13 @@ const AllDocumentsModal: React.FC<AllDocumentsModalProps> = ({
     };
 
     const documentsToDisplay: DocumentSource[] = React.useMemo(() => {
-        const currentDocsInfo = documentSummary?.docs_info || [];
+        const currentDocsInfo = processDataResponse?.docs_info || []; // Use new atom
         return currentDocsInfo.map((doc: DocsInfo) => ({
             id: doc.ids,
             title: doc.file,
             type: getFileTypeFromName(doc.file),
         }));
-    }, [documentSummary]);
+    }, [processDataResponse]);
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="전체 문서 목록">

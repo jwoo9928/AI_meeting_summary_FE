@@ -1,12 +1,188 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { UploadCloud, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'; // Added Loader2 for progress
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { UploadCloud, ChevronDown, ChevronRight, Loader2, FileSearch, FileCheck2, TextSelect } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAtomValue } from 'jotai';
-import { processingStatusAtom, documentSummaryAtom, originFileAtom } from '../../store/atoms';
-import { DocumentSummary } from '../../types';
+import { processingStatusAtom, processDataResponseAtom } from '../../store/atoms'; // Updated atom
+import { ProcessDataResponse } from '../../types'; // Updated type
 import FileUploadOptionsModal from '../molecules/FileUploadOptionsModal';
 import { PromptInputWithActions } from '../molecules/PromptInput';
 import MessageBasic from '../molecules/ChatSection';
+
+// --- Placeholder Animation Components ---
+
+const Stage1STTAnimation: React.FC = () => {
+    const [lines, setLines] = useState<{ id: number; width: string }[]>([]);
+    const lineCounterRef = useRef(0);
+    const maxVisibleLines = 7;
+
+    useEffect(() => {
+        setLines([]);
+        lineCounterRef.current = 0;
+        const interval = setInterval(() => {
+            const newLine = {
+                id: lineCounterRef.current++,
+                width: `${Math.floor(Math.random() * 40) + 50}%`
+            };
+            setLines(prev => {
+                const newLines = [...prev, newLine];
+                if (newLines.length > maxVisibleLines) {
+                    return newLines.slice(newLines.length - maxVisibleLines);
+                }
+                return newLines;
+            });
+        }, 600);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="w-full h-full p-3 rounded-lg overflow-hidden flex flex-col justify-end items-center">
+            <AnimatePresence initial={false}>
+                {lines.map((line) => (
+                    <motion.div
+                        key={line.id}
+                        layout
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                        className="h-5 bg-gray-300 rounded my-1 animate-pulse"
+                        style={{ width: line.width }}
+                    />
+                ))}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+const Stage2_RAGSearchAnimation: React.FC = () => {
+    const docsPerBatch = 5;
+    const [currentBatch, setCurrentBatch] = useState(0);
+    const [displayedDocs, setDisplayedDocs] = useState<Array<{ id: number, batch: number }>>([]);
+    const docIdCounter = useRef(0);
+
+    useEffect(() => {
+        const timers: number[] = [];
+        const addDocsForBatch = (batchNumber: number) => {
+            for (let i = 0; i < docsPerBatch; i++) {
+                timers.push(
+                    window.setTimeout(() => {
+                        setDisplayedDocs(prev => [...prev, { id: docIdCounter.current++, batch: batchNumber }]);
+                    }, (i + 1) * 600)
+                );
+            }
+        };
+
+        addDocsForBatch(currentBatch);
+
+        timers.push(window.setTimeout(() => {
+            setDisplayedDocs(prev => prev.filter(doc => doc.batch !== currentBatch));
+            setCurrentBatch(prev => prev + 1);
+        }, (docsPerBatch + 1) * 600 + 500));
+
+        return () => timers.forEach(clearTimeout);
+    }, [currentBatch]);
+
+    return (
+        <div className="w-full h-full flex flex-col items-center justify-center p-4 space-y-6 overflow-hidden">
+            <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1, type: 'spring' }}
+                className="flex items-center space-x-2 p-3 bg-gray-100 rounded-lg shadow"
+            >
+                <FileSearch className="w-8 h-8 text-gray-600" />
+                <p className="text-sm font-medium text-gray-700">원본 문서 분석 중...</p>
+            </motion.div>
+
+            <div className="flex flex-wrap justify-center items-center gap-3 h-24">
+                <AnimatePresence>
+                    {displayedDocs.map((doc) => (
+                        <motion.div
+                            key={doc.id}
+                            layout
+                            initial={{ opacity: 0, x: 50 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -50, transition: { duration: 0.3 } }}
+                            transition={{ type: 'spring', stiffness: 150, damping: 20 }}
+                            className="p-3 rounded-lg shadow bg-white flex flex-col items-center space-y-1 w-20"
+                        >
+                            <FileCheck2 className="w-6 h-6 text-gray-500" />
+                            <span className="text-xs text-gray-600">
+                                문서
+                            </span>
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </div>
+        </div>
+    );
+};
+
+
+const Stage3_SummarizationAnimation: React.FC = () => {
+    const [progress, setProgress] = useState(0);
+
+    useEffect(() => {
+        setProgress(0);
+        const interval = setInterval(() => {
+            setProgress(prev => {
+                if (prev >= 100) {
+                    return 0;
+                }
+                return prev + 5;
+            });
+        }, 150);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    const numSourceLines = 6;
+    const numSummaryLines = 2;
+
+    return (
+        <div className="w-full h-full flex flex-col items-center justify-center p-4 space-y-4">
+            <TextSelect className="w-10 h-10 text-gray-500 mb-3" />
+            <div className="w-full max-w-md space-y-1">
+                {[...Array(numSourceLines)].map((_, i) => (
+                    <motion.div
+                        key={`source-${i}`}
+                        className="h-3 bg-gray-300 rounded"
+                        style={{ width: `${100 - i * 5}%` }}
+                        initial={{ opacity: 0.7 }}
+                        animate={{
+                            opacity: progress > (i / numSourceLines) * 100 ? 0.3 : 0.7,
+                            backgroundColor: progress > (i / numSourceLines) * 100 ? "#e5e7eb" : "#d1d5db",
+                        }}
+                        transition={{ duration: 0.3 }}
+                    />
+                ))}
+            </div>
+
+            <div className="w-full max-w-xs space-y-1.5 mt-4">
+                {[...Array(numSummaryLines)].map((_, i) => (
+                    <motion.div
+                        key={`summary-${i}`}
+                        className="h-4 bg-gray-400 rounded"
+                        initial={{ scaleX: 0, opacity: 0 }}
+                        animate={{
+                            scaleX: progress / 100,
+                            opacity: progress > 10 ? 1 : 0
+                        }}
+                        style={{
+                            width: `${80 - i * 10}%`,
+                            transformOrigin: "left"
+                        }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">요약 진행률: {progress}%</p>
+        </div>
+    );
+};
+
+// --- End Placeholder Animation Components ---
 
 interface ChatPanelProps {
     onFileUpload: (file: File, meeting_info: string, language?: string) => Promise<void>;
@@ -16,10 +192,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onFileUpload }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const processingStatus = useAtomValue(processingStatusAtom);
-    const finalDocumentSummary = useAtomValue(documentSummaryAtom);
-    const originFileData = useAtomValue(originFileAtom); // Used to determine if a process has started
+    const processData = useAtomValue(processDataResponseAtom); // Use the new combined atom
 
-    const [isSummaryVisible, setIsSummaryVisible] = useState(true); // For toggling the final summary display
+    const [isSummaryVisible, setIsSummaryVisible] = useState(true);
     const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [fileTypeForModal, setFileTypeForModal] = useState<'audio' | 'pdf' | 'multiple-pdf' | 'other' | undefined>(undefined);
@@ -27,32 +202,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onFileUpload }) => {
     const handleFileSelect = useCallback((file: File) => {
         setSelectedFile(file);
         let type: 'audio' | 'pdf' | 'multiple-pdf' | 'other' = 'other';
-        if (file.type.startsWith('audio/')) {
-            type = 'audio';
-        } else if (file.type === 'application/pdf') {
-            type = 'pdf';
-        }
-        // Add logic for 'multiple-pdf' if needed, or let modal handle it
+        if (file.type.startsWith('audio/')) type = 'audio';
+        else if (file.type === 'application/pdf') type = 'pdf';
         setFileTypeForModal(type);
         setIsOptionsModalOpen(true);
     }, []);
 
     const handleModalSubmit = async (meetingInfoOrConfirmation: string | boolean, language?: string) => {
         if (selectedFile) {
-            // Determine meeting_info based on the type of meetingInfoOrConfirmation
-            // For PDF, it's a boolean confirmation, so we construct a default meeting_info.
-            // For others (audio/text), it's the actual meeting_info string.
             const meetingInfoForAPI = typeof meetingInfoOrConfirmation === 'string'
                 ? meetingInfoOrConfirmation
-                : `PDF Upload: ${selectedFile.name}`; // Default for PDF if only confirmation is true
-
-            console.log(`File "${selectedFile.name}" confirmed. Meeting Info: "${meetingInfoForAPI}", Language: ${language}`);
+                : `PDF Upload: ${selectedFile.name}`;
             try {
                 await onFileUpload(selectedFile, meetingInfoForAPI, language);
-                // Status updates are handled by App.tsx via Jotai atoms
             } catch (error) {
                 console.error("Error during onFileUpload callback in ChatPanel:", error);
-                // App.tsx should also handle this error and update processingStatusAtom
             }
         } else {
             console.error("handleModalSubmit called without a selected file.");
@@ -70,47 +234,57 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onFileUpload }) => {
 
     const handleFileInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file) {
-            handleFileSelect(file);
-        }
-        if (event.target) {
-            event.target.value = ''; // Reset input
-        }
+        if (file) handleFileSelect(file);
+        if (event.target) event.target.value = '';
     }, [handleFileSelect]);
 
     const handleDrop = useCallback((event: React.DragEvent) => {
         event.preventDefault();
         const file = event.dataTransfer.files?.[0];
-        if (file) {
-            handleFileSelect(file);
-        }
+        if (file) handleFileSelect(file);
     }, [handleFileSelect]);
 
-    const handleDragOver = useCallback((event: React.DragEvent) => {
-        event.preventDefault();
-    }, []);
-
-    const handleUploadClick = useCallback(() => {
-        fileInputRef.current?.click();
-    }, []);
+    const handleDragOver = useCallback((event: React.DragEvent) => event.preventDefault(), []);
+    const handleUploadClick = useCallback(() => fileInputRef.current?.click(), []);
 
     const renderProcessingStatus = () => {
-        // Simple text-based progress. Could be enhanced with icons or more structure.
-        // Mimicking GPT/Gemini/Grok style would involve more complex UI elements.
-        // For now, a clear message:
+        let animationComponent;
+        switch (processingStatus) {
+            case "파일 처리 중...": // Corresponds to App.tsx Stage 1
+                animationComponent = <Stage1STTAnimation />;
+                break;
+            case "데이터 분석 중...": // Corresponds to App.tsx Stage 2
+                animationComponent = <Stage2_RAGSearchAnimation />;
+                break;
+            case "문서 요약 중...": // Corresponds to App.tsx Stage 3
+                animationComponent = <Stage3_SummarizationAnimation />;
+                break;
+            default:
+                return (
+                    <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                        <p className="text-lg font-semibold text-gray-700">{processingStatus}</p>
+                    </div>
+                );
+        }
+
         return (
-            <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-                <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-                <p className="text-lg font-semibold text-gray-700">{processingStatus}</p>
-                {/* Example of step-by-step, could be driven by more granular status */}
-                {/* <div className="mt-4 space-y-2 text-sm text-gray-500">
-                    <p>Step 1: Analyzing file... {processingStatus.includes("관련 문서") || processingStatus.includes("문서 요약") || processingStatus.includes("완료") ? "✅" : "⏳"}</p>
-                    <p>Step 2: Finding documents... {processingStatus.includes("문서 요약") || processingStatus.includes("완료") ? "✅" : (processingStatus.includes("관련 문서") ? "⏳" : "")}</p>
-                    <p>Step 3: Summarizing... {processingStatus.includes("완료") ? "✅" : (processingStatus.includes("문서 요약") ? "⏳" : "")}</p>
-                </div> */}
-            </div>
+            <>
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none">
+                    <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                    <p className="mt-2 text-xs font-semibold text-gray-700 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full shadow">
+                        {processingStatus}
+                    </p>
+                </div>
+                <div className="w-full h-full flex items-center justify-center">
+                    {animationComponent}
+                </div>
+            </>
         );
     };
+
+    // Extract summary and action_items for display
+    const summaryToDisplay = processData?.summary;
+    const actionItemsToDisplay = processData?.action_items;
 
     return (
         <div className="flex flex-col h-full">
@@ -118,13 +292,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onFileUpload }) => {
                 <h1 className="text-base font-semibold text-gray-900">채팅</h1>
             </header>
 
-            <div className="flex-1 overflow-y-auto px-6 py-5">
-                {processingStatus && processingStatus !== "모든 과정 완료!" && (
+            <div className={`flex-1 overflow-y-auto relative ${processingStatus && processingStatus !== "모든 과정 완료!" && !processingStatus.startsWith("오류 발생:") ? "" : "px-6 py-5"}`}>
+                {processingStatus && processingStatus !== "모든 과정 완료!" && !processingStatus.startsWith("오류 발생:") && (
                     renderProcessingStatus()
                 )}
+                {processingStatus && processingStatus.startsWith("오류 발생:") && (
+                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center px-6 py-5">
+                        <p className="text-lg font-semibold text-red-600">{processingStatus}</p>
+                    </div>
+                )}
 
-                {!processingStatus && !originFileData && !finalDocumentSummary && (
-                    // Initial state: "시작하려면 소스 추가"
+                {!processingStatus && !processData?.origin_file && !processData && ( // Check processData and its origin_file
                     <div className="flex flex-col items-center justify-center h-full">
                         <div className="w-full max-w-2xl space-y-8">
                             <div className="text-center space-y-6">
@@ -160,8 +338,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onFileUpload }) => {
                     </div>
                 )}
 
-                {finalDocumentSummary && (processingStatus === "모든 과정 완료!" || !processingStatus) && (
-                    // Display summary and action items after completion
+                {processData && (processingStatus === "모든 과정 완료!" || (!processingStatus && processData.origin_file)) && (
                     <>
                         <div className="px-0 py-3 border-b border-gray-200 bg-gray-50 mb-4">
                             <div
@@ -169,7 +346,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onFileUpload }) => {
                                 onClick={() => setIsSummaryVisible(!isSummaryVisible)}
                             >
                                 <h2 className="text-md font-semibold text-gray-800">
-                                    {finalDocumentSummary.summary ? "요약 및 실행 항목" : "실행 항목"}
+                                    {summaryToDisplay ? "요약 및 실행 항목" : (actionItemsToDisplay && actionItemsToDisplay.length > 0 ? "실행 항목" : "결과")}
                                 </h2>
                                 {isSummaryVisible ? <ChevronDown className="w-5 h-5 text-gray-600" /> : <ChevronRight className="w-5 h-5 text-gray-600" />}
                             </div>
@@ -183,17 +360,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onFileUpload }) => {
                                         style={{ overflow: 'hidden' }}
                                         className="mt-2 space-y-3 px-4 pb-3"
                                     >
-                                        {finalDocumentSummary.summary && (
+                                        {summaryToDisplay && (
                                             <div>
                                                 <h3 className="text-sm font-medium text-gray-700 mb-1">요약</h3>
-                                                <p className="text-sm text-gray-600 whitespace-pre-wrap">{finalDocumentSummary.summary}</p>
+                                                <p className="text-sm text-gray-600 whitespace-pre-wrap">{summaryToDisplay}</p>
                                             </div>
                                         )}
-                                        {finalDocumentSummary.action_items && finalDocumentSummary.action_items.length > 0 && (
+                                        {actionItemsToDisplay && actionItemsToDisplay.length > 0 && (
                                             <div>
                                                 <h3 className="text-sm font-medium text-gray-700 mb-1">실행 항목</h3>
                                                 <ul className="list-disc list-inside pl-1 space-y-1">
-                                                    {finalDocumentSummary.action_items.map((item, index) => (
+                                                    {actionItemsToDisplay.map((item, index) => (
                                                         <li key={index} className="text-sm text-gray-600">{item}</li>
                                                     ))}
                                                 </ul>
@@ -203,7 +380,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onFileUpload }) => {
                                 )}
                             </AnimatePresence>
                         </div>
-                        <div className="h-full"> {/* Ensure MessageBasic has space if it needs to fill */}
+                        <div className="h-full">
                             <MessageBasic />
                         </div>
                     </>

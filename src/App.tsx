@@ -12,12 +12,10 @@ import {
   isLeftSidebarOpenAtom,
   isRightSidebarOpenAtom,
   processingStatusAtom,
-  originFileAtom,
-  findDocsResponseAtom,
-  documentSummaryAtom,
+  processDataResponseAtom, // Use the new combined atom
 } from './store/atoms';
 import APIController from './controllers/APIController';
-import { OriginFile, FindDocsResponse, DocumentSummary } from './types';
+import { ProcessDataResponse } from './types'; // Use the new combined type
 
 
 const App: React.FC = () => {
@@ -28,9 +26,7 @@ const App: React.FC = () => {
   const setIsRightSidebarOpen = useSetAtom(isRightSidebarOpenAtom);
 
   const setProcessingStatus = useSetAtom(processingStatusAtom);
-  const setOriginFile = useSetAtom(originFileAtom);
-  const setFindDocsResponse = useSetAtom(findDocsResponseAtom);
-  const setDocumentSummary = useSetAtom(documentSummaryAtom);
+  const setProcessDataResponse = useSetAtom(processDataResponseAtom); // Setter for the new combined atom
 
 
   const [isNewStudioModalOpen, setIsNewStudioModalOpen] = useState(false);
@@ -62,50 +58,46 @@ const App: React.FC = () => {
 
 
   const handleFileUploadAndProcess = async (file: File, meeting_info: string, language?: string) => {
-    // Reset previous data
-    setOriginFile(null);
-    setFindDocsResponse(null);
-    setDocumentSummary(null);
+    setProcessDataResponse(null); // Reset previous combined data
+    setIsLeftSidebarOpen(false);
+    setIsRightSidebarOpen(false);
+
+    // Start status cycling
+    // Stage 1: "파일 처리 중..." (e.g., STT)
+    setProcessingStatus("파일 처리 중...");
+    const timeoutId1 = setTimeout(() => {
+      setProcessingStatus("데이터 분석 중...");
+    }, 1500); // Stage 1 duration: 5 seconds
+
+    const timeoutId2 = setTimeout(() => {
+      setProcessingStatus("문서 요약 중...");
+    }, 1500 + 1500); // Stage 2 starts after 5s, lasts 5s. Stage 3 starts after 10s.
 
     try {
-      // 1. File upload, call /process/origin, collapse sidebars
-      setProcessingStatus("파일 처리 중...");
-      setIsLeftSidebarOpen(false);
-      setIsRightSidebarOpen(false);
-      const originData = await APIController.processOrigin(file, meeting_info, language);
-      setOriginFile(originData);
-      console.log("Origin data received:", originData);
+      // API call happens in parallel to the status cycling.
+      // Backend simulates a 5s delay.
+      // The frontend status cycling above is illustrative and might not perfectly match the backend's internal steps.
+      const responseData = await APIController.processDocument(file, meeting_info, language, true); // true for is_dumy
 
-      // 2. /process/origin success, open right sidebar, call /process/find_docs
-      setProcessingStatus("관련 문서 찾는 중...");
-      setIsRightSidebarOpen(true);
-      // Ensure originData is not null before proceeding
-      if (!originData) {
-        throw new Error("Origin data is null, cannot proceed to findDocs.");
-      }
-      const findDocsData = await APIController.findDocs(originData);
-      setFindDocsResponse(findDocsData);
-      console.log("Find docs data received:", findDocsData);
+      // Clear timeouts if API finishes early (though backend has fixed 5s delay)
+      clearTimeout(timeoutId1);
+      clearTimeout(timeoutId2);
 
-      // 3. /process/find_docs success, open left sidebar, call /process/summary
-      setProcessingStatus("문서 요약 중...");
+      setProcessDataResponse(responseData);
+      console.log("Combined data received:", responseData);
+
+      // All data received, now open sidebars
       setIsLeftSidebarOpen(true);
-      // Ensure findDocsData and its docs_info are not null
-      if (!findDocsData || !findDocsData.docs_info) {
-        throw new Error("Docs info is null, cannot proceed to getSummary.");
-      }
-      const summaryData = await APIController.getSummary(originData, meeting_info, language);
-      setDocumentSummary(summaryData);
-      console.log("Summary data received:", summaryData);
-
-      // 4. /process/summary success
-      setProcessingStatus("모든 과정 완료!"); // Or clear it: setProcessingStatus("");
+      setIsRightSidebarOpen(true);
+      setProcessingStatus("모든 과정 완료!");
 
     } catch (error) {
+      clearTimeout(timeoutId1);
+      clearTimeout(timeoutId2);
       console.error("Processing error:", error);
       setProcessingStatus(`오류 발생: ${error instanceof Error ? error.message : String(error)}`);
-      // Optionally, restore sidebar states on error
-      // setIsLeftSidebarOpen(true);
+      // Optionally, restore sidebar states on error, or keep them closed.
+      // setIsLeftSidebarOpen(true); 
       // setIsRightSidebarOpen(true);
     }
   };

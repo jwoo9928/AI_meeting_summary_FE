@@ -49,6 +49,7 @@ export type OriginFile = {
     file_size: number;   // in bytes
     file_type: string;   // e.g., 'pdf'
     link: string;        // download link
+    text?: string;       // Added optional text field for original document content
 };
 
 export type DocumentSummary = {
@@ -59,4 +60,12 @@ export type DocumentSummary = {
 // For the response from the /process/find_docs API
 export interface FindDocsResponse {
     docs_info: DocsInfo[];
+}
+
+// For the combined response from the new /process-data/dummy API
+export interface ProcessDataResponse {
+    docs_info: DocsInfo[];
+    summary: string;
+    action_items: string[];
+    origin_file: OriginFile;
 }

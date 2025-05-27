@@ -1,5 +1,6 @@
 import { atom } from 'jotai';
-import { DocumentSummary, OriginFile, FindDocsResponse, DocsInfo } from '../types';
+// DocsInfo might still be needed if other atoms use it, OriginFile and FindDocsResponse are part of ProcessDataResponse
+import { ProcessDataResponse, DocsInfo, DocumentSummary } from '../types';
 
 // Sidebar visibility
 export const isLeftSidebarOpenAtom = atom<boolean>(true);
@@ -8,10 +9,12 @@ export const isRightSidebarOpenAtom = atom<boolean>(true);
 // Processing status
 export const processingStatusAtom = atom<string>(""); // e.g., "Processing original file..."
 
-// Data from API steps
-export const originFileAtom = atom<OriginFile | null>(null);
-export const findDocsResponseAtom = atom<FindDocsResponse | null>(null);
-// documentSummaryAtom will store the result of the final /process/summary call
+// Atom to store the entire response from the /process-data/dummy API
+export const processDataResponseAtom = atom<ProcessDataResponse | null>(null);
+
+// The old documentSummaryAtom is being replaced by processDataResponseAtom.
+// If any components specifically need *only* the summary part, they can derive it,
+// or we can create a derived atom later if needed.
 
 /**
  * Atom to store the ID of the currently selected document.
@@ -47,7 +50,7 @@ export const activatedBriefingIdsAtom = atom<Set<string>>(new Set<string>());
  * Atom to store the document summary data received from the processDocument API.
  * It will be null initially.
  */
-export const documentSummaryAtom = atom<DocumentSummary | null>(null); // This will store data from /process/summary
+// export const documentSummaryAtom = atom<DocumentSummary | null>(null); // This is now part of processDataResponseAtom
 
 /**
  * Atom to store the ID of the document whose detail view is open in the RightSidebar.

@@ -3,8 +3,8 @@ import { useSetAtom } from 'jotai';
 import Modal from './Modal';
 import Button from '../atoms/Button';
 import APIController from '../../controllers/APIController';
-import { documentSummaryAtom } from '../../store/atoms';
-import { DocumentSummary, OriginFile, ProcessDataResponse } from '../../types';
+import { processDataResponseAtom } from '../../store/atoms'; // Changed atom
+import { ProcessDataResponse } from '../../types'; // DocumentSummary, OriginFile might not be needed directly
 
 interface NewStudioModalProps {
     isOpen: boolean;
@@ -15,7 +15,7 @@ const NewStudioModal: React.FC<NewStudioModalProps> = ({ isOpen, onClose }) => {
     const [studioName, setStudioName] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const setDocumentSummary = useSetAtom(documentSummaryAtom);
+    const setProcessDataResponse = useSetAtom(processDataResponseAtom); // Changed setter
 
     useEffect(() => {
         if (isOpen) {
@@ -45,23 +45,14 @@ const NewStudioModal: React.FC<NewStudioModalProps> = ({ isOpen, onClose }) => {
 
         setIsSubmitting(true);
         try {
-            const processDataResponse: ProcessDataResponse = await APIController.processDocument(selectedFile, studioName.trim());
+            // APIController.processDocument now returns ProcessDataResponse which includes origin_file
+            const responseData: ProcessDataResponse = await APIController.processDocument(selectedFile, studioName.trim());
 
-            const originFile: OriginFile = {
-                file_name: selectedFile.name,
-                file_size: selectedFile.size,
-                file_type: selectedFile.type || selectedFile.name.split('.').pop() || 'unknown',
-                link: URL.createObjectURL(selectedFile), // Temporary local URL
-            };
+            // The responseData already contains origin_file correctly populated by the APIController (or backend)
+            // No need to manually construct originFile here if APIController's dummy/actual response is correct.
+            // The ProcessDataResponse type includes origin_file, docs_info, summary, action_items.
 
-            const newDocumentSummary: DocumentSummary = {
-                docs_info: processDataResponse.docs_info,
-                summary: processDataResponse.summary,
-                action_items: processDataResponse.action_items,
-                origin_file: originFile,
-            };
-
-            setDocumentSummary(newDocumentSummary);
+            setProcessDataResponse(responseData); // Set the entire response
             onClose();
         } catch (error) {
             console.error("Error processing document:", error);
@@ -69,7 +60,7 @@ const NewStudioModal: React.FC<NewStudioModalProps> = ({ isOpen, onClose }) => {
         } finally {
             setIsSubmitting(false);
         }
-    }, [studioName, selectedFile, onClose, setDocumentSummary]);
+    }, [studioName, selectedFile, onClose, setProcessDataResponse]);
 
     return (
         <Modal

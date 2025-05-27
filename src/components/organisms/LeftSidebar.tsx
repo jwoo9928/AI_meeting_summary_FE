@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Search, PanelLeftClose, PanelRightClose, FileText, ChevronDown, Diamond } from 'lucide-react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { DocumentSource, DocsInfo } from '../../types';
-import { selectedDocIdAtom, findDocsResponseAtom, fetchedDocInfoIdsAtom, docSummariesAtom } from '../../store/atoms'; // Use findDocsResponseAtom
+import { selectedDocIdAtom, processDataResponseAtom, fetchedDocInfoIdsAtom, docSummariesAtom } from '../../store/atoms'; // Use processDataResponseAtom
 import APIController from '../../controllers/APIController';
 import NewStudioModal from '../molecules/NewStudioModal';
 
@@ -131,7 +131,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     onToggleExpand
 }) => {
     const [selectedDocId, setSelectedDocId] = useAtom(selectedDocIdAtom);
-    const findDocsResponse = useAtomValue(findDocsResponseAtom); // Get data from findDocsResponseAtom
+    const processDataResponse = useAtomValue(processDataResponseAtom); // Get data from processDataResponseAtom
     const docSummaries = useAtomValue(docSummariesAtom);
     const [isNewStudioModalOpen, setIsNewStudioModalOpen] = useState(false);
 
@@ -148,16 +148,16 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     };
 
     const allDocumentSources: DocumentSource[] = React.useMemo(() => {
-        const currentDocsInfo = findDocsResponse?.docs_info || []; // Use findDocsResponse
+        const currentDocsInfo = processDataResponse?.docs_info || []; // Use processDataResponse
         return currentDocsInfo.length > 0
             ? currentDocsInfo.map((doc: DocsInfo) => ({
-                id: doc.ids, // Assuming doc.ids is the correct unique identifier
+                id: doc.ids,
                 title: doc.file,
                 type: getFileTypeFromName(doc.file),
-                summary: docSummaries[doc.ids] || '', // Use doc.ids for summary lookup
+                summary: docSummaries[doc.ids] || '',
             }))
             : [];
-    }, [findDocsResponse, docSummaries]);
+    }, [processDataResponse, docSummaries]);
 
     const itemsToRenderInList = React.useMemo(() => {
         if (!expandedDocId) {
