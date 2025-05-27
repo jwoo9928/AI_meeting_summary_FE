@@ -28,13 +28,6 @@ export interface DocInfo {
     ids: string;
 }
 
-// For the entire response from the /process-data API
-export interface ProcessDataResponse {
-    docs_info: DocInfo[];
-    summary: string;
-    action_items: string[];
-}
-
 // For the response from the /get-document-info API
 export interface DocumentDetail {
     summary: string;
@@ -59,8 +52,11 @@ export type OriginFile = {
 };
 
 export type DocumentSummary = {
-    docs_info: DocsInfo[];
     summary: string;
     action_items: string[];
-    origin_file: OriginFile;
 };
+
+// For the response from the /process/find_docs API
+export interface FindDocsResponse {
+    docs_info: DocsInfo[];
+}

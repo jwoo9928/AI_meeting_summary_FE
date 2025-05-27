@@ -1,4 +1,4 @@
-import { ProcessDataResponse, GetDocumentInfoResponse } from '../types';
+import { GetDocumentInfoResponse, OriginFile, FindDocsResponse, DocumentSummary, DocsInfo } from '../types';
 
 class APIController {
     private static instance: APIController;
@@ -14,19 +14,15 @@ class APIController {
         return APIController.instance;
     }
 
-    public async processDocument(
-        file: File,
-        meeting_info: string,
-        language?: string,
-    ): Promise<ProcessDataResponse> {
+    // New method for /process/origin
+    public async processOrigin(file: File, meeting_info: string, language?: string): Promise<OriginFile> {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('meeting_info', meeting_info);
         if (language) {
             formData.append('language', language);
         }
-
-        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/process-data${import.meta.env.MODE === "development" ? '/dummy' : ''}`;
+        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/process/origin${import.meta.env.MODE === "development" ? '/dummy' : ''}`;
 
         const response = await fetch(apiUrl, {
             method: 'POST',
@@ -37,14 +33,77 @@ class APIController {
             let errorData;
             try {
                 errorData = await response.json();
-            } catch { // Removed unused 'e' variable
-                // If response is not JSON, use status text
+            } catch {
                 throw new Error(response.statusText || `HTTP error! status: ${response.status}`);
             }
             throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
         }
+        // Mocked response for development if /dummy is used
+        if (import.meta.env.MODE === "development" && apiUrl.endsWith("/dummy")) {
+            console.log("APIController: Using dummy data for /process/origin");
+            return {
+                file_name: file.name,
+                file_size: file.size,
+                file_type: file.type,
+                link: `/dummy/${file.name}`
+            } as OriginFile;
+        }
+        return response.json() as Promise<OriginFile>;
+    }
 
-        return response.json() as Promise<ProcessDataResponse>;
+    // New method for /process/find_docs
+    public async findDocs(origin_file: OriginFile): Promise<FindDocsResponse> {
+        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/process/find_docs${import.meta.env.MODE === "development" ? '/dummy' : ''}`;
+        const body = {
+            origin_file
+        };
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch {
+                throw new Error(response.statusText || `HTTP error! status: ${response.status}`);
+            }
+            throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
+        }
+        // Mocked response for development if /dummy is used
+        return response.json() as Promise<FindDocsResponse>;
+    }
+
+    // New method for /process/summary
+    public async getSummary(origin_file: OriginFile, meeting_info: string, language?: string): Promise<DocumentSummary> {
+        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/process/summary${import.meta.env.MODE === "development" ? '/dummy' : ''}`;
+        const body = {
+            origin_file,
+            meeting_info,
+            language,
+        };
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch {
+                throw new Error(response.statusText || `HTTP error! status: ${response.status}`);
+            }
+            throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
+        }
+        return response.json() as Promise<DocumentSummary>;
     }
 
     public async getDocumentInfo(docId: string): Promise<GetDocumentInfoResponse> {

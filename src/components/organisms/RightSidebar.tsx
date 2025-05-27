@@ -10,9 +10,10 @@ import {
     PanelLeftClose,
     PanelRightClose,
 } from 'lucide-react';
-import { selectedDocIdAtom, docDetailsAtom, documentSummaryAtom, fetchedDocInfoIdsAtom, activatedBriefingIdsAtom, docSummariesAtom, rightSidebarDetailDocIdAtom } from '../../store/atoms'; // Added rightSidebarDetailDocIdAtom
+import { selectedDocIdAtom, docDetailsAtom, findDocsResponseAtom, fetchedDocInfoIdsAtom, activatedBriefingIdsAtom, docSummariesAtom, rightSidebarDetailDocIdAtom } from '../../store/atoms'; // Use findDocsResponseAtom
 import { useAtom } from 'jotai';
 import APIController from '../../controllers/APIController';
+import { DocsInfo } from '../../types'; // Import DocsInfo
 
 interface RightSidebarProps {
     onAddNote?: () => void;
@@ -28,11 +29,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     isCollapsed,
     onToggleCollapse,
 }) => {
-    const [detailDocId, setDetailDocId] = useAtom(rightSidebarDetailDocIdAtom); // Use atom for detail view state
+    const [detailDocId, setDetailDocId] = useAtom(rightSidebarDetailDocIdAtom);
     const selectedDocId = useAtomValue(selectedDocIdAtom);
     const allDocDetails = useAtomValue(docDetailsAtom);
-    const documentSummary = useAtomValue(documentSummaryAtom); // Use documentSummaryAtom
-    const currentDocsInfo = documentSummary?.docs_info || []; // Derive docs_info
+    const findDocsResponse = useAtomValue(findDocsResponseAtom); // Use findDocsResponseAtom
+    const currentDocsInfo: DocsInfo[] = findDocsResponse?.docs_info || []; // Derive docs_info and type it
     const fetchedDocInfoIds = useAtomValue(fetchedDocInfoIdsAtom);
 
     const setDocDetails = useSetAtom(docDetailsAtom);
@@ -100,7 +101,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     }, [selectedDocId, fetchedDocInfoIds, setActivatedBriefingIds, setDocDetails, setDocSummaries, setFetchedDocInfoIds]);
 
     const activeDocDetail = activeBriefingDocId ? allDocDetails[activeBriefingDocId] : null;
-    const activeDocInfo = activeBriefingDocId ? currentDocsInfo.find(doc => doc.ids === activeBriefingDocId) : null;
+    const activeDocInfo = activeBriefingDocId ? currentDocsInfo.find((doc: DocsInfo) => doc.ids === activeBriefingDocId) : null;
 
     const isLoadingBriefing = activeBriefingDocId && !fetchedDocInfoIds.has(activeBriefingDocId) && isDocumentSelected && activatedBriefingIds.has(activeBriefingDocId);
 
@@ -122,7 +123,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         }
     };
 
-    const detailedViewDocInfo = detailDocId ? currentDocsInfo.find(doc => doc.ids === detailDocId) : null;
+    const detailedViewDocInfo = detailDocId ? currentDocsInfo.find((doc: DocsInfo) => doc.ids === detailDocId) : null;
     const detailedViewDocDetails = detailDocId ? allDocDetails[detailDocId] : null;
 
     // Determine padding based on collapsed state or detail view state

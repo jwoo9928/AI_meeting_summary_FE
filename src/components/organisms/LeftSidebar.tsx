@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react'; // Added useState
+import React, { useEffect, useState } from 'react';
 import { Plus, Search, PanelLeftClose, PanelRightClose, FileText, ChevronDown, Diamond } from 'lucide-react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { DocumentSource, DocsInfo } from '../../types'; // Changed DocInfo to DocsInfo
-import { selectedDocIdAtom, documentSummaryAtom, fetchedDocInfoIdsAtom, docSummariesAtom } from '../../store/atoms'; // Changed docsInfoAtom to documentSummaryAtom
+import { DocumentSource, DocsInfo } from '../../types';
+import { selectedDocIdAtom, findDocsResponseAtom, fetchedDocInfoIdsAtom, docSummariesAtom } from '../../store/atoms'; // Use findDocsResponseAtom
 import APIController from '../../controllers/APIController';
-import NewStudioModal from '../molecules/NewStudioModal'; // Import NewStudioModal
+import NewStudioModal from '../molecules/NewStudioModal';
 
 interface SourceItemProps {
     source: DocumentSource;
@@ -131,9 +131,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     onToggleExpand
 }) => {
     const [selectedDocId, setSelectedDocId] = useAtom(selectedDocIdAtom);
-    const documentSummary = useAtomValue(documentSummaryAtom);
+    const findDocsResponse = useAtomValue(findDocsResponseAtom); // Get data from findDocsResponseAtom
     const docSummaries = useAtomValue(docSummariesAtom);
-    const [isNewStudioModalOpen, setIsNewStudioModalOpen] = useState(false); // State for NewStudioModal
+    const [isNewStudioModalOpen, setIsNewStudioModalOpen] = useState(false);
 
     const handleSelectSource = (id: string) => {
         setSelectedDocId(prevId => (prevId === id ? null : id));
@@ -148,16 +148,16 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     };
 
     const allDocumentSources: DocumentSource[] = React.useMemo(() => {
-        const currentDocsInfo = documentSummary?.docs_info || [];
+        const currentDocsInfo = findDocsResponse?.docs_info || []; // Use findDocsResponse
         return currentDocsInfo.length > 0
             ? currentDocsInfo.map((doc: DocsInfo) => ({
-                id: doc.ids,
+                id: doc.ids, // Assuming doc.ids is the correct unique identifier
                 title: doc.file,
                 type: getFileTypeFromName(doc.file),
-                summary: docSummaries[doc.ids] || '',
+                summary: docSummaries[doc.ids] || '', // Use doc.ids for summary lookup
             }))
             : [];
-    }, [documentSummary, docSummaries]);
+    }, [findDocsResponse, docSummaries]);
 
     const itemsToRenderInList = React.useMemo(() => {
         if (!expandedDocId) {

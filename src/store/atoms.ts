@@ -1,5 +1,17 @@
 import { atom } from 'jotai';
-import { DocInfo, DocumentSummary } from '../types'; // Import the DocInfo and DocumentSummary types
+import { DocumentSummary, OriginFile, FindDocsResponse, DocsInfo } from '../types';
+
+// Sidebar visibility
+export const isLeftSidebarOpenAtom = atom<boolean>(true);
+export const isRightSidebarOpenAtom = atom<boolean>(true);
+
+// Processing status
+export const processingStatusAtom = atom<string>(""); // e.g., "Processing original file..."
+
+// Data from API steps
+export const originFileAtom = atom<OriginFile | null>(null);
+export const findDocsResponseAtom = atom<FindDocsResponse | null>(null);
+// documentSummaryAtom will store the result of the final /process/summary call
 
 /**
  * Atom to store the ID of the currently selected document.
@@ -35,7 +47,7 @@ export const activatedBriefingIdsAtom = atom<Set<string>>(new Set<string>());
  * Atom to store the document summary data received from the processDocument API.
  * It will be null initially.
  */
-export const documentSummaryAtom = atom<DocumentSummary | null>(null);
+export const documentSummaryAtom = atom<DocumentSummary | null>(null); // This will store data from /process/summary
 
 /**
  * Atom to store the ID of the document whose detail view is open in the RightSidebar.
