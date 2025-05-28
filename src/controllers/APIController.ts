@@ -98,6 +98,13 @@ class APIController {
 
         return response.json() as Promise<GetDocumentInfoResponse>;
     }
+
+    public async chatWithAI(prompt: string): Promise<string> {
+        const apiUrl = `${import.meta.env.VITE_AI_CHAT_API_URL}/api/v1/chat/rag/stream`;
+
+
+
+    }
 }
 
 export default APIController.getInstance();
