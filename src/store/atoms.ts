@@ -1,12 +1,12 @@
 import { atom } from 'jotai';
 // DocsInfo might still be needed if other atoms use it, OriginFile and FindDocsResponse are part of ProcessDataResponse
-import { ProcessDataResponse, DocsInfo, DocumentSummary } from '../types';
+import { ProcessDataResponse } from '../types';
 
 // Sidebar visibility
 export const isLeftSidebarOpenAtom = atom<boolean>(true);
 export const isRightSidebarOpenAtom = atom<boolean>(true);
 export const isSummaryPanelOpenAtom = atom<boolean>(true);
-export const isChatPanelOpenAtom = atom<boolean>(true);
+export const isChatPanelOpenAtom = atom<boolean>(false);
 
 // Processing status
 export const processingStatusAtom = atom<string>(""); // e.g., "Processing original file..."

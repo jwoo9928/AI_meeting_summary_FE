@@ -27,9 +27,9 @@ const AllDocumentsModal: React.FC<AllDocumentsModalProps> = ({
     const documentsToDisplay: DocumentSource[] = React.useMemo(() => {
         const currentDocsInfo = processDataResponse?.docs_info || []; // Use new atom
         return currentDocsInfo.map((doc: DocsInfo) => ({
-            id: doc.ids,
-            title: doc.file,
-            type: getFileTypeFromName(doc.file),
+            id: doc.doc_id,
+            title: doc.doc_name,
+            type: getFileTypeFromName(doc.doc_name),
         }));
     }, [processDataResponse]);
 

@@ -103,7 +103,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     }, [selectedDocId, fetchedDocInfoIds, setActivatedBriefingIds, setDocDetails, setDocSummaries, setFetchedDocInfoIds]);
 
     const activeDocDetail = activeBriefingDocId ? allDocDetails[activeBriefingDocId] : null;
-    const activeDocInfo = activeBriefingDocId ? currentDocsInfo.find((doc: DocsInfo) => doc.ids === activeBriefingDocId) : null;
+    const activeDocInfo = activeBriefingDocId ? currentDocsInfo.find((doc: DocsInfo) => doc.doc_id === activeBriefingDocId) : null;
 
     const isLoadingBriefing = activeBriefingDocId && !fetchedDocInfoIds.has(activeBriefingDocId) && isDocumentSelected && activatedBriefingIds.has(activeBriefingDocId);
 
@@ -125,7 +125,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         }
     };
 
-    const detailedViewDocInfo = detailDocId ? currentDocsInfo.find((doc: DocsInfo) => doc.ids === detailDocId) : null;
+    const detailedViewDocInfo = detailDocId ? currentDocsInfo.find((doc: DocsInfo) => doc.doc_id === detailDocId) : null;
     const detailedViewDocDetails = detailDocId ? allDocDetails[detailDocId] : null;
 
     const ORIGINAL_DOC_ID_PREFIX = "original_document_";
@@ -190,7 +190,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 </>
             );
         } else if (detailedViewDocInfo && detailedViewDocDetails) {
-            title = detailedViewDocInfo.file;
+            title = detailedViewDocInfo.doc_name;
             breadcrumb = "메모"; // Or "상세 요약"
             content = (
                 <>
@@ -344,13 +344,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                     <div
                                         className="mt-3 p-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
                                         onClick={() => setDetailDocId(activeBriefingDocId)}
-                                        title={`View details for ${activeDocInfo.file}`}
+                                        title={`View details for ${activeDocInfo.doc_name}`}
                                     >
                                         <div className="flex items-start space-x-3">
                                             <FileText className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                                             <div className="flex-1 min-w-0">
-                                                <h4 className="text-sm font-semibold text-gray-800 truncate" title={activeDocInfo.file}>
-                                                    {activeDocInfo.file}
+                                                <h4 className="text-sm font-semibold text-gray-800 truncate" title={activeDocInfo.doc_name}>
+                                                    {activeDocInfo.doc_name}
                                                 </h4>
                                                 <p className="text-xs text-gray-600 mt-1 leading-relaxed line-clamp-2" title={activeDocDetail.deep_summary}>
                                                     {activeDocDetail.deep_summary}
@@ -364,7 +364,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                             <FileWarning className="w-5 h-5 text-red-500" />
                                             <span className="text-sm text-red-700">상세 요약 정보를 불러올 수 없습니다.</span>
                                         </div>
-                                        {activeDocInfo && <p className="text-xs text-red-600 mt-1">문서: {activeDocInfo.file}</p>}
+                                        {activeDocInfo && <p className="text-xs text-red-600 mt-1">문서: {activeDocInfo.doc_name}</p>}
                                     </div>
                                 ) : null}
                             </div>
@@ -385,8 +385,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                         <button
                             onClick={handleBriefingIconClick}
                             className="p-2.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-800 w-full flex justify-center"
-                            aria-label={`Open detailed summary for ${activeDocInfo.file}`}
-                            title={activeDocInfo.file}
+                            aria-label={`Open detailed summary for ${activeDocInfo.doc_name}`}
+                            title={activeDocInfo.doc_name}
                         >
                             <FileText className="w-5 h-5 text-yellow-500" />
                         </button>

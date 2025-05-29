@@ -151,10 +151,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         const currentDocsInfo = processDataResponse?.docs_info || []; // Use processDataResponse
         return currentDocsInfo.length > 0
             ? currentDocsInfo.map((doc: DocsInfo) => ({
-                id: doc.ids,
-                title: doc.file,
-                type: getFileTypeFromName(doc.file),
-                summary: docSummaries[doc.ids] || '',
+                id: doc.doc_id,
+                title: doc.doc_name,
+                type: getFileTypeFromName(doc.doc_name),
+                summary: docSummaries[doc.doc_id] || '',
             }))
             : [];
     }, [processDataResponse, docSummaries]);

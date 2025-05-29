@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAtomValue } from 'jotai';
 import { processingStatusAtom, processDataResponseAtom } from '../../store/atoms';
 import FileUploadOptionsModal from '../molecules/FileUploadOptionsModal';
-import MessageBasic from '../molecules/ChatSection';
 
 // --- Placeholder Animation Components ---
 
@@ -361,13 +360,11 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({ onFileUpload, isCollapsed, 
                                         <p className="text-sm text-gray-600 whitespace-pre-wrap">{summaryToDisplay}</p>
                                     </div>
                                 )}
-                                {actionItemsToDisplay && actionItemsToDisplay.length > 0 && (
+                                {actionItemsToDisplay && (
                                     <div>
                                         <h3 className="text-sm font-medium text-gray-700 mb-1">실행 항목</h3>
                                         <ul className="list-disc list-inside pl-1 space-y-1">
-                                            {actionItemsToDisplay.map((item, index) => (
-                                                <li key={index} className="text-sm text-gray-600">{item}</li>
-                                            ))}
+                                            <div className="text-sm text-gray-600">{actionItemsToDisplay}</div>
                                         </ul>
                                     </div>
                                 )}

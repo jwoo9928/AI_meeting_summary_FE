@@ -22,11 +22,6 @@ export interface StudioItemData {
 
 // You can add other shared types here as the project grows.
 
-// For individual document info from the /process-data API
-export interface DocInfo {
-    file: string;
-    ids: string;
-}
 
 // For the response from the /get-document-info API
 export interface DocumentDetail {
@@ -40,8 +35,8 @@ export interface GetDocumentInfoResponse {
 }
 
 export type DocsInfo = {
-    file: string;
-    ids: string;
+    doc_name: string;
+    doc_id: string;
 };
 
 export type OriginFile = {
@@ -50,6 +45,7 @@ export type OriginFile = {
     file_type: string;   // e.g., 'pdf'
     link: string;        // download link
     text?: string;       // Added optional text field for original document content
+    doc_id?: string; // Optional, if the file is associated with a specific document
 };
 
 export type DocumentSummary = {
@@ -66,6 +62,6 @@ export interface FindDocsResponse {
 export interface ProcessDataResponse {
     docs_info: DocsInfo[];
     summary: string;
-    action_items: string[];
+    action_items: string;
     origin_file: OriginFile;
 }

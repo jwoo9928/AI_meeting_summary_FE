@@ -98,7 +98,7 @@ const App: React.FC = () => {
     }, 5000 + 5000);
 
     try {
-      const responseData = await APIController.processDocument(file, meeting_info, language, true);
+      const responseData = await APIController.processDocument(file, meeting_info, language);
 
       clearTimeout(timeoutId1);
       clearTimeout(timeoutId2);
