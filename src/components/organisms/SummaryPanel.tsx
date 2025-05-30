@@ -182,7 +182,7 @@ const Stage3_SummarizationAnimation: React.FC = () => {
 // --- End Placeholder Animation Components ---
 
 interface SummaryPanelProps {
-    onFileUpload: (file: File, meeting_info: string, language?: string) => Promise<void>;
+    onFileUpload: (file: File, meeting_info: string, participants?: string, language?: string) => Promise<void>;
     isCollapsed: boolean;
     onToggleCollapse: () => void;
 }
@@ -206,13 +206,13 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({ onFileUpload, isCollapsed, 
         setIsOptionsModalOpen(true);
     }, []);
 
-    const handleModalSubmit = async (meetingInfoOrConfirmation: string | boolean, language?: string) => {
+    const handleModalSubmit = async (meetingInfoOrConfirmation: string | boolean, participants?: string, language?: string) => {
         if (selectedFile) {
             const meetingInfoForAPI = typeof meetingInfoOrConfirmation === 'string'
                 ? meetingInfoOrConfirmation
-                : `PDF Upload: ${selectedFile.name}`;
+                : `File Upload: ${selectedFile.name}`;
             try {
-                await onFileUpload(selectedFile, meetingInfoForAPI, language);
+                await onFileUpload(selectedFile, meetingInfoForAPI, participants, language);
             } catch (error) {
                 console.error("Error during onFileUpload callback in ChatPanel:", error);
             }
@@ -383,7 +383,7 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({ onFileUpload, isCollapsed, 
                 onSubmit={handleModalSubmit}
                 fileName={selectedFile?.name}
                 fileType={fileTypeForModal}
-                files={selectedFile && (fileTypeForModal === 'pdf' || fileTypeForModal === 'multiple-pdf') ? [{ name: selectedFile.name, type: selectedFile.type }] : undefined}
+                files={selectedFile && (fileTypeForModal !== 'audio') ? [{ name: selectedFile.name, type: selectedFile.type }] : undefined}
             />
         </div>
     );

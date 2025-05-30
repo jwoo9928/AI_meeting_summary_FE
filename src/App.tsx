@@ -17,7 +17,6 @@ import {
   processDataResponseAtom,
   parsedMeetingInfoAtom, // Added
 } from './store/atoms';
-import { ParsedMeetingInfo } from './types'; // Added
 import APIController from './controllers/APIController';
 import SummaryPanel from './components/organisms/SummaryPanel';
 import { MessageCircle } from 'lucide-react';
@@ -86,7 +85,7 @@ const App: React.FC = () => {
     });
   };
 
-  const handleFileUploadAndProcess = async (file: File, meeting_info: string, language?: string) => {
+  const handleFileUploadAndProcess = async (file: File, meeting_info: string, participants?: string, language?: string) => {
     setProcessDataResponse(null);
     setParsedMeetingInfo(null); // Reset parsed meeting info
     setIsLeftSidebarOpen(false);
@@ -102,23 +101,7 @@ const App: React.FC = () => {
     }, 5000 + 5000);
 
     try {
-      // Parse meeting_info
-      try {
-        const parsedInfo: ParsedMeetingInfo = JSON.parse(meeting_info);
-        setParsedMeetingInfo({
-          hub_meeting_id: parsedInfo.hub_meeting_id || "UNKNOWN_MEETING_ID_FROM_PARSE",
-          hub_participant_names: parsedInfo.hub_participant_names || [],
-        });
-      } catch (parseError) {
-        console.error("Error parsing meeting_info JSON:", parseError);
-        // Set a default or indicate error for parsedMeetingInfo if critical
-        setParsedMeetingInfo({
-          hub_meeting_id: "ERROR_PARSING_MEETING_ID",
-          hub_participant_names: [],
-        });
-      }
-
-      const responseData = await APIController.processDocument(file, meeting_info, language);
+      const responseData = await APIController.processDocument(file, meeting_info, participants, language);
 
       clearTimeout(timeoutId1);
       clearTimeout(timeoutId2);
@@ -222,7 +205,7 @@ const App: React.FC = () => {
                 exit={{ opacity: 0, scale: 0.5 }}
                 transition={{ duration: 0.3, ease: "easeInOut" }}
                 onClick={toggleChatPanelCollapse}
-                className="absolute bottom-4 right-4 w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-600 transition-colors cursor-pointer z-10"
+                className="absolute bottom-4 right-4 w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center shadow-lg hover:bg-gray-600 transition-colors cursor-pointer z-10"
                 aria-label="Open Chat"
               >
                 <MessageCircle className="w-8 h-8 text-white" />

@@ -5,9 +5,11 @@ import { X } from 'lucide-react';
 import { Message, MessageAvatar, MessageContent } from '../ui/message';
 import APIController from '../../controllers/APIController';
 import { processDataResponseAtom, parsedMeetingInfoAtom } from '../../store/atoms';
-import { ChatMessage } from '../../types';
+import { ChatMessage, MeetingContext } from '../../types';
 import { streamToAsyncIterable } from '../../lib/utils';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '../ui/reasoning';
+import { Loader } from '../ui/loader';
+import { Markdown } from '../ui/markdown';
 
 interface ChatPanelProps {
     onToggleCollapse: () => void;
@@ -16,6 +18,7 @@ interface ChatPanelProps {
 const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Removed isCollapsed from destructuring
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isOpen, setIsOpen] = useState(true); // State to manage panel open/close
     // To keep track of active streams and avoid processing them multiple times
     const activeStreamsRef = useRef<Set<string>>(new Set());
 
@@ -75,12 +78,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Remov
         }
 
         // Construct MeetingContext carefully, providing fallbacks
-        // const meetingContext: MeetingContext = {
-        //     hub_meeting_id: parsedMeetingInfo?.hub_meeting_id || "UNKNOWN_MEETING_ID",
-        //     hub_meeting_title: processDataResponse?.origin_file?.file_name || "Untitled Document",
-        //     hub_participant_names: parsedMeetingInfo?.hub_participant_names || [],
-        //     hub_minutes_s3_url: processDataResponse?.origin_file?.link || "",
-        // };
+        const meetingContext: MeetingContext = {
+            hub_meeting_id: parsedMeetingInfo?.hub_meeting_id || processDataResponse?.origin_file?.doc_id,
+            hub_meeting_title: processDataResponse?.origin_file?.file_name || "Untitled Document",
+            hub_participant_names: parsedMeetingInfo?.hub_participant_names || [],
+            hub_minutes_s3_url: processDataResponse?.origin_file?.doc_id || "",
+        };
 
         // Add AI message placeholder
         const aiMessageId = `ai-${Date.now()}`;
@@ -95,7 +98,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Remov
         activeStreamsRef.current.add(aiMessageId); // Mark as active
 
         try {
-            const stream = await APIController.chatWithAI(promptText, sessionId);
+            const stream = await APIController.chatWithAI(promptText, sessionId, meetingContext);
             if (stream) {
                 const asyncIterableStream = streamToAsyncIterable(stream);
                 let accumulatedContent = '';
@@ -103,6 +106,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Remov
                     console.log("Received chunk:", chunk);
                     accumulatedContent += chunk;
                     const [reason, content] = accumulatedContent.split("</thinking>")
+                    if (content) {
+                        setIsOpen(false);
+                    }
                     setMessages(prev =>
                         prev.map(m =>
                             m.id === aiMessageId ? {
@@ -160,15 +166,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Remov
                         {msg.sender === 'ai' && (
                             <MessageAvatar src="/avatars/ai.png" alt="AI" fallback="AI" className="mr-2" />
                         )}
-                        {msg.reasoning && <Reasoning>
-                            <div className="flex w-full flex-col gap-3">
-                                <p className="text-base">I calculated the best color balance</p>
-                                <ReasoningTrigger>Show reasoning</ReasoningTrigger>
-                                <ReasoningContent className="ml-2 border-l-2 border-l-slate-200 px-2 pb-1 dark:border-l-slate-700">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">{msg.reasoning}</p>
-                                </ReasoningContent>
-                            </div>
-                        </Reasoning>}
+                        {msg.sender === 'ai' && (msg.reasoning ?
+                            <Reasoning open={isOpen} onOpenChange={(open: boolean) => {
+                                setIsOpen(open); // Toggle open state
+                            }} >
+                                <div className="flex w-full flex-col gap-3">
+                                    <p className="text-base">I calculated the best color balance</p>
+                                    <ReasoningTrigger>Show reasoning</ReasoningTrigger>
+                                    <ReasoningContent className="ml-2 border-l-2 border-l-slate-200 px-2 pb-1 dark:border-l-slate-700">
+                                        <Markdown className="text-sm text-gray-600 dark:text-gray-400">{msg.reasoning}</Markdown>
+                                    </ReasoningContent>
+                                </div>
+                            </Reasoning> : <Loader className="text-gray-800 dark:text-gray-200" variant={"loading-dots"} />
+                        )}
                         <MessageContent
                             markdown={false} // Markdown component used explicitly below
                             className={`max-w-xl ${msg.sender === 'user' ? 'text-white' : 'bg-transparent text-gray-800 dark:text-gray-200'}`}
@@ -178,15 +188,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Remov
                         {/* User avatar should be a sibling to MessageContent, like AI avatar */}
                     </Message>
                 ))}
-                {isLoading && messages[messages.length - 1]?.isStreaming && (
-                    <Message className="justify-start">
-                        <MessageAvatar src="/avatars/ai.png" alt="AI" fallback="AI" className="mr-2" />
-                        <MessageContent className="text-gray-800 dark:text-gray-200">
-                            Thinking...
-                        </MessageContent>
-                        {/* <Loader className="text-gray-800 dark:text-gray-200" variant={"loading-dots"} /> */}
-                    </Message>
-                )}
             </div>
 
             {/* Input Area */}

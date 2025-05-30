@@ -22,15 +22,25 @@ class APIController {
     public async processDocument(
         file: File,
         meeting_info: string,
+        participants?: string,
         language?: string,
     ): Promise<ProcessDataResponse> {
         const formData = new FormData();
         formData.append('file', file);
+        if (participants) {
+            formData.append('participants', participants);
+        }
         formData.append('meeting_info', meeting_info);
         if (language) {
             formData.append('language', language);
         }
 
+        console.log("formData:", {
+            file: file.name,
+            participants,
+            meeting_info,
+            language
+        });
 
         // Always use /dummy for this endpoint as per new requirement
         const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/process-data`;
