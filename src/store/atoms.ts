@@ -1,6 +1,6 @@
 import { atom } from 'jotai';
 // DocsInfo might still be needed if other atoms use it, OriginFile and FindDocsResponse are part of ProcessDataResponse
-import { ProcessDataResponse } from '../types';
+import { ProcessDataResponse, ParsedMeetingInfo } from '../types';
 
 // Sidebar visibility
 export const isLeftSidebarOpenAtom = atom<boolean>(true);
@@ -59,3 +59,9 @@ export const activatedBriefingIdsAtom = atom<Set<string>>(new Set<string>());
  * It will be null if no detail view is open.
  */
 export const rightSidebarDetailDocIdAtom = atom<string | null>(null);
+
+/**
+ * Atom to store the parsed meeting_info data.
+ * This data is originally passed as a JSON string to processDocument.
+ */
+export const parsedMeetingInfoAtom = atom<ParsedMeetingInfo | null>(null);

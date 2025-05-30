@@ -1,4 +1,9 @@
-import { GetDocumentInfoResponse, OriginFile, DocsInfo, ProcessDataResponse } from '../types'; // Removed FindDocsResponse, DocumentSummary, added ProcessDataResponse
+import {
+    GetDocumentInfoResponse,
+    ProcessDataResponse,
+    RagChatRequest,
+    MeetingContext
+} from '../types';
 
 class APIController {
     private static instance: APIController;
@@ -74,11 +79,57 @@ class APIController {
         return response.json() as Promise<GetDocumentInfoResponse>;
     }
 
-    public async chatWithAI(prompt: string): Promise<string> {
+    public async chatWithAI(
+        query: string,
+        sessionId: string,
+        meetingContext?: MeetingContext,
+        targetDocumentIds?: string[]
+    ): Promise<ReadableStream<Uint8Array> | null> {
+        const apiUrl = `https://team5chat.ap.loclx.io/api/v1/chat/rag/stream`;
 
+        const requestBody: RagChatRequest = {
+            query,
+            session_id: sessionId,
+            search_in_meeting_documents_only: false, // As per example, can be parameterized if needed
+            target_document_ids: targetDocumentIds || [sessionId], // Default to the main document of the session
+            meeting_context: meetingContext,
+        };
 
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream' // Important for streaming APIs like SSE
+                },
+                body: JSON.stringify(requestBody),
+            });
 
+            if (!response.ok) {
+                let errorData;
+                let errorText = '';
+                try {
+                    errorText = await response.text();
+                    errorData = JSON.parse(errorText);
+                } catch {
+                    // If parsing JSON fails, use the raw text or status text
+                    throw new Error(errorText || response.statusText || `HTTP error! status: ${response.status}`);
+                }
+                throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
+            }
 
+            if (!response.body) {
+                throw new Error('Response body is null, cannot stream.');
+            }
+
+            return response.body; // Return the readable stream
+
+        } catch (error) {
+            console.error('Error in chatWithAI:', error);
+            // Re-throw the error for the caller to handle
+            // This allows UI components to display appropriate error messages
+            throw error;
+        }
     }
 }
 

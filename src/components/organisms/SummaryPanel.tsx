@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAtomValue } from 'jotai';
 import { processingStatusAtom, processDataResponseAtom } from '../../store/atoms';
 import FileUploadOptionsModal from '../molecules/FileUploadOptionsModal';
+import { Markdown } from '../ui/markdown';
 
 // --- Placeholder Animation Components ---
 
@@ -280,8 +281,8 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({ onFileUpload, isCollapsed, 
     };
 
     // Extract summary and action_items for display
-    const summaryToDisplay = processData?.summary;
-    const actionItemsToDisplay = processData?.action_items;
+    const summaryToDisplay = processData?.summary
+    const actionItemsToDisplay = processData?.action_items
 
     return (
         <div className="flex flex-col h-full">
@@ -356,16 +357,18 @@ const SummaryPanel: React.FC<SummaryPanelProps> = ({ onFileUpload, isCollapsed, 
                             <>
                                 {summaryToDisplay && (
                                     <div>
-                                        <h3 className="text-sm font-medium text-gray-700 mb-1">요약</h3>
-                                        <p className="text-sm text-gray-600 whitespace-pre-wrap">{summaryToDisplay}</p>
+                                        {/* <h3 className="text-sm font-medium text-gray-700 mb-1">요약</h3> */}
+                                        <Markdown className="text-sm text-gray-600 whitespace-pre-wrap">
+                                            {summaryToDisplay}
+                                        </Markdown>
                                     </div>
                                 )}
                                 {actionItemsToDisplay && (
                                     <div>
-                                        <h3 className="text-sm font-medium text-gray-700 mb-1">실행 항목</h3>
-                                        <ul className="list-disc list-inside pl-1 space-y-1">
-                                            <div className="text-sm text-gray-600">{actionItemsToDisplay}</div>
-                                        </ul>
+                                        {/* <h3 className="text-sm font-medium text-gray-700 mb-1">실행 항목</h3> */}
+                                        <Markdown className="prose prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-h4:text-base prose-h5:text-sm prose-h6:text-xs">
+                                            {actionItemsToDisplay}
+                                        </Markdown>
                                     </div>
                                 )}
                             </>

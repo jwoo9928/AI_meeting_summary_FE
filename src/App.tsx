@@ -15,7 +15,9 @@ import {
   isChatPanelOpenAtom,
   processingStatusAtom,
   processDataResponseAtom,
+  parsedMeetingInfoAtom, // Added
 } from './store/atoms';
+import { ParsedMeetingInfo } from './types'; // Added
 import APIController from './controllers/APIController';
 import SummaryPanel from './components/organisms/SummaryPanel';
 import { MessageCircle } from 'lucide-react';
@@ -33,6 +35,7 @@ const App: React.FC = () => {
 
   const setProcessingStatus = useSetAtom(processingStatusAtom);
   const setProcessDataResponse = useSetAtom(processDataResponseAtom);
+  const setParsedMeetingInfo = useSetAtom(parsedMeetingInfoAtom); // Added
 
   const [isNewStudioModalOpen, setIsNewStudioModalOpen] = useState(false);
   const [isAllDocumentsModalOpen, setIsAllDocumentsModalOpen] = useState(false);
@@ -85,6 +88,7 @@ const App: React.FC = () => {
 
   const handleFileUploadAndProcess = async (file: File, meeting_info: string, language?: string) => {
     setProcessDataResponse(null);
+    setParsedMeetingInfo(null); // Reset parsed meeting info
     setIsLeftSidebarOpen(false);
     setIsRightSidebarOpen(false);
 
@@ -98,6 +102,22 @@ const App: React.FC = () => {
     }, 5000 + 5000);
 
     try {
+      // Parse meeting_info
+      try {
+        const parsedInfo: ParsedMeetingInfo = JSON.parse(meeting_info);
+        setParsedMeetingInfo({
+          hub_meeting_id: parsedInfo.hub_meeting_id || "UNKNOWN_MEETING_ID_FROM_PARSE",
+          hub_participant_names: parsedInfo.hub_participant_names || [],
+        });
+      } catch (parseError) {
+        console.error("Error parsing meeting_info JSON:", parseError);
+        // Set a default or indicate error for parsedMeetingInfo if critical
+        setParsedMeetingInfo({
+          hub_meeting_id: "ERROR_PARSING_MEETING_ID",
+          hub_participant_names: [],
+        });
+      }
+
       const responseData = await APIController.processDocument(file, meeting_info, language);
 
       clearTimeout(timeoutId1);
@@ -187,7 +207,7 @@ const App: React.FC = () => {
             transition={{ type: "tween", ease: "easeInOut", duration: 0.3 }}
           >
             <ChatPanel
-              isCollapsed={!isChatPanelOpen}
+              // isCollapsed={!isChatPanelOpen} // Removed as ChatPanel no longer uses this
               onToggleCollapse={toggleChatPanelCollapse}
             />
           </motion.div>
