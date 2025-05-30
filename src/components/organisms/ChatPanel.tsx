@@ -168,9 +168,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Remov
                         )}
                         <div className="flex flex-col gap-2">
                             {msg.sender === 'ai' && (msg.reasoning ?
-                                <Reasoning open={isOpen} onOpenChange={(open: boolean) => {
-                                    setIsOpen(open); // Toggle open state
-                                }} >
+                                <Reasoning>
                                     <div className="flex w-full flex-col gap-3">
                                         <p className="text-base">I calculated the best color balance</p>
                                         <ReasoningTrigger>Show reasoning</ReasoningTrigger>
