@@ -105,7 +105,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Remov
                 for await (const chunk of asyncIterableStream) {
                     console.log("Received chunk:", chunk);
                     accumulatedContent += chunk;
-                    const [reason, content] = accumulatedContent.split("</thinking>")
+                    const [reason, content] = accumulatedContent.split("</think>")
                     if (content) {
                         setIsOpen(false);
                     }
@@ -113,7 +113,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Remov
                         prev.map(m =>
                             m.id === aiMessageId ? {
                                 ...m,
-                                reasoning: reason.replace('<think>', '').replace('</think>', '') || '',
+                                reasoning: reason.replace('<think>', '') || '',
                                 content: content || ''
                             } : m
                         )
@@ -166,25 +166,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onToggleCollapse }) => { // Remov
                         {msg.sender === 'ai' && (
                             <MessageAvatar src="/avatars/ai.png" alt="AI" fallback="AI" className="mr-2" />
                         )}
-                        {msg.sender === 'ai' && (msg.reasoning ?
-                            <Reasoning open={isOpen} onOpenChange={(open: boolean) => {
-                                setIsOpen(open); // Toggle open state
-                            }} >
-                                <div className="flex w-full flex-col gap-3">
-                                    <p className="text-base">I calculated the best color balance</p>
-                                    <ReasoningTrigger>Show reasoning</ReasoningTrigger>
-                                    <ReasoningContent className="ml-2 border-l-2 border-l-slate-200 px-2 pb-1 dark:border-l-slate-700">
-                                        <Markdown className="text-sm text-gray-600 dark:text-gray-400">{msg.reasoning}</Markdown>
-                                    </ReasoningContent>
-                                </div>
-                            </Reasoning> : <Loader className="text-gray-800 dark:text-gray-200" variant={"loading-dots"} />
-                        )}
-                        <MessageContent
-                            markdown={false} // Markdown component used explicitly below
-                            className={`max-w-xl ${msg.sender === 'user' ? 'text-white' : 'bg-transparent text-gray-800 dark:text-gray-200'}`}
-                        >
-                            {msg.content}
-                        </MessageContent>
+                        <div className="flex flex-col gap-2">
+                            {msg.sender === 'ai' && (msg.reasoning ?
+                                <Reasoning open={isOpen} onOpenChange={(open: boolean) => {
+                                    setIsOpen(open); // Toggle open state
+                                }} >
+                                    <div className="flex w-full flex-col gap-3">
+                                        <p className="text-base">I calculated the best color balance</p>
+                                        <ReasoningTrigger>Show reasoning</ReasoningTrigger>
+                                        <ReasoningContent className="ml-2 border-l-2 border-l-slate-200 px-2 pb-1 dark:border-l-slate-700">
+                                            <Markdown className="text-sm text-gray-600 dark:text-gray-400">{msg.reasoning}</Markdown>
+                                        </ReasoningContent>
+                                    </div>
+                                </Reasoning> : <Loader className="text-gray-800 dark:text-gray-200" variant={"loading-dots"} />
+                            )}
+                            <MessageContent
+                                markdown={false} // Markdown component used explicitly below
+                                className={`w-full ${msg.sender === 'user' ? 'text-white' : 'bg-transparent text-gray-800 dark:text-gray-200 max-w-[calc(100%-5rem)]'}`}
+                            >
+                                <Markdown className="text-sm">{msg.content}</Markdown>
+                            </MessageContent>
+                        </div>
                         {/* User avatar should be a sibling to MessageContent, like AI avatar */}
                     </Message>
                 ))}
