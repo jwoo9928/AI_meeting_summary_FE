@@ -5,6 +5,7 @@ import { DocumentSource, DocsInfo } from '../../types';
 import { selectedDocIdAtom, processDataResponseAtom, fetchedDocInfoIdsAtom, docSummariesAtom } from '../../store/atoms'; // Use processDataResponseAtom
 import APIController from '../../controllers/APIController';
 import NewStudioModal from '../molecules/NewStudioModal';
+import { Markdown } from '../ui/markdown';
 
 interface SourceItemProps {
     source: DocumentSource;
@@ -104,13 +105,14 @@ const SourceItem: React.FC<SourceItemProps> = React.memo(({ source, isSelected, 
                 <div className="p-4 bg-blue-50 rounded-b-lg border-t border-blue-200"> {/* Using bg-blue-50 for a very light blue */}
                     <div className="flex items-center mb-2">
                         <Diamond className="w-4 h-4 text-blue-600 mr-2 flex-shrink-0" /> {/* Lucide Diamond icon */}
-                        <h4 className="text-sm font-semibold text-blue-700">소스 가이드</h4>
+                        <h4 className="text-sm font-semibold text-blue-700">문서 가이드</h4>
                     </div>
                     <div className="pl-[22px]"> {/* Indent summary content to align with text after icon */}
                         <h5 className="text-xs font-semibold text-gray-800 mb-1">요약</h5>
-                        <p className="text-xs text-gray-700 leading-relaxed">
-                            {source.summary || (isExpanded && source.id && !fetchedDocInfoIds.has(source.id) ? "요약 정보 로딩 중..." : "요약 정보가 없습니다.")}
-                        </p>
+                        {source.summary ? <Markdown className="text-xs text-gray-700 leading-relaxed">{source.summary}</Markdown> :
+                            <p className="text-xs text-gray-700 leading-relaxed">
+                                {(isExpanded && source.id && !fetchedDocInfoIds.has(source.id) ? "요약 정보 로딩 중..." : "요약 정보가 없습니다.")}
+                            </p>}
                     </div>
                 </div>
             )}

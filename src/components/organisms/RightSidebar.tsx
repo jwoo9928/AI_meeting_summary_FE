@@ -15,6 +15,7 @@ import { selectedDocIdAtom, docDetailsAtom, processDataResponseAtom, fetchedDocI
 import { useAtom } from 'jotai';
 import APIController from '../../controllers/APIController';
 import { DocsInfo, OriginFile, ProcessDataResponse, DocumentDetail } from '../../types'; // Import ProcessDataResponse and DocumentDetail
+import { Markdown } from '../ui/markdown';
 
 interface RightSidebarProps {
     onAddNote?: () => void;
@@ -381,9 +382,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                                 <h4 className="text-sm font-semibold text-gray-800 truncate" title={activeDocInfo.doc_name}>
                                                     {activeDocInfo.doc_name}
                                                 </h4>
-                                                <p className="text-xs text-gray-600 mt-1 leading-relaxed line-clamp-2" title={activeDocDetail.deep_summary}>
+                                                <Markdown className="text-xs text-gray-600 mt-1 leading-relaxed line-clamp-2">{activeDocDetail.deep_summary}</Markdown>
+                                                {/* <p className="text-xs text-gray-600 mt-1 leading-relaxed line-clamp-2" title={activeDocDetail.deep_summary}>
                                                     {activeDocDetail.deep_summary}
-                                                </p>
+                                                </p> */}
+
                                             </div>
                                         </div>
                                     </div>

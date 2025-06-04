@@ -44,6 +44,21 @@ const App: React.FC = () => {
   const [currentSubscription, setCurrentSubscription] = useState<PushSubscriptionJSON | null>(null);
   const [pushNotificationStatus, setPushNotificationStatus] = useState<string>("확인 중...");
 
+  // Effect to hide SummaryPanel and ChatPanel when both sidebars have detailed views open
+  useEffect(() => {
+    if (leftSidebarExpandedDocId && rightSidebarDetailDocId) {
+      setIsSummaryPanelOpen(false);
+      setIsChatPanelOpen(false);
+    } else {
+      // If either sidebar is not expanded, ensure panels are open
+      if (!isSummaryPanelOpen) {
+        setIsSummaryPanelOpen(true);
+      }
+    }
+    // No automatic re-opening logic here; users can re-open via toggle buttons
+    // if they close one of the sidebars' detailed views.
+  }, [leftSidebarExpandedDocId, rightSidebarDetailDocId, setIsSummaryPanelOpen, setIsChatPanelOpen]);
+
   useEffect(() => {
     const initializePush = async () => {
       setPushNotificationStatus("푸시 알림 상태 확인 중...");
