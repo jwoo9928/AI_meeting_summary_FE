@@ -1,8 +1,8 @@
 import {
-    GetDocumentInfoResponse,
     ProcessDataResponse,
     RagChatRequest,
-    MeetingContext
+    MeetingContext,
+    DocumentDetail
 } from '../types';
 
 class APIController {
@@ -64,16 +64,15 @@ class APIController {
         return response.json() as Promise<ProcessDataResponse>;
     }
 
-    public async getDocumentInfo(docId: string): Promise<GetDocumentInfoResponse> {
+    public async getDocumentInfo(docId: string): Promise<DocumentDetail> {
         // Assuming /get-document-info/dummy still exists and is useful for individual doc details
-        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/get-document-info${import.meta.env.MODE === "development" ? '/dummy' : ''}`;
+        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/get-document-info/${docId}`;
 
         const response = await fetch(apiUrl, {
-            method: 'POST', // Assuming POST, adjust if it's GET or other
+            method: 'GET', // Assuming POST, adjust if it's GET or other
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify([docId]), // Assuming the API expects { "doc_id": "..." }
         });
 
         if (!response.ok) {
@@ -86,7 +85,7 @@ class APIController {
             throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
         }
 
-        return response.json() as Promise<GetDocumentInfoResponse>;
+        return response.json() as Promise<DocumentDetail>;
     }
 
     public async chatWithAI(

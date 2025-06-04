@@ -24,7 +24,8 @@ const SourceItem: React.FC<SourceItemProps> = React.memo(({ source, isSelected, 
             if (isExpanded && source.id && !fetchedDocInfoIds.has(source.id)) {
                 try {
                     const responseData = await APIController.getDocumentInfo(source.id);
-                    const docDetail = responseData[source.id];
+                    console.log(`LeftSidebar: Fetched summary for ${source.id}`, responseData);
+                    const docDetail = responseData;
                     if (docDetail && docDetail.summary) {
                         setDocSummaries(prev => ({ ...prev, [source.id]: docDetail.summary }));
                     } else {
@@ -159,19 +160,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             : [];
     }, [processDataResponse, docSummaries]);
 
-    const itemsToRenderInList = React.useMemo(() => {
-        if (!expandedDocId) {
-            return allDocumentSources; // Return all sources if nothing is expanded
-        }
-
-        const currentExpandedItem = allDocumentSources.find(s => s.id === expandedDocId);
-
-        if (!currentExpandedItem) {
-            return allDocumentSources; // Fallback if expanded item not found
-        }
-
-        return [currentExpandedItem]; // Only the expanded item
-    }, [allDocumentSources, expandedDocId]);
+    // Always render all document sources. Expansion is handled by SourceItem.
+    const itemsToRenderInList = allDocumentSources;
 
     const sidebarWidthClass = isCollapsed
         ? 'w-[72px] p-3'

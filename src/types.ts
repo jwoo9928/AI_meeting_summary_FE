@@ -44,7 +44,8 @@ export type OriginFile = {
     file_size: string;
     file_type: string;
     doc_id: string;
-    text: string
+    text: string;
+    link?: string; // Added optional link property
 };
 
 export type DocumentSummary = {
@@ -96,4 +97,19 @@ export interface ChatMessage {
     content: string; // Content will always be a string, accumulated
     reasoning?: string; // Optional reasoning for AI messages
     isStreaming?: boolean;
+}
+
+// src/types/push.ts
+
+/** Push Subscription Keys 타입 */
+export interface PushSubscriptionKeys {
+    p256dh: string;
+    auth: string;
+}
+
+/** 브라우저가 반환하는 구독 정보 전체 */
+export interface PushSubscriptionJSON {
+    endpoint: string;
+    expirationTime: number | null;
+    keys: PushSubscriptionKeys;
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { motion, AnimatePresence } from 'framer-motion';
 import TopBar from './components/organisms/TopBar';
@@ -15,11 +15,13 @@ import {
   isChatPanelOpenAtom,
   processingStatusAtom,
   processDataResponseAtom,
-  parsedMeetingInfoAtom, // Added
+  parsedMeetingInfoAtom,
 } from './store/atoms';
 import APIController from './controllers/APIController';
 import SummaryPanel from './components/organisms/SummaryPanel';
 import { MessageCircle } from 'lucide-react';
+import { registerServiceWorkerAndSubscribe, unsubscribeFromPushNotifications } from './lib/pushUtils';
+import { PushSubscriptionJSON } from './types';
 
 const App: React.FC = () => {
   const rightSidebarDetailDocId = useAtomValue(rightSidebarDetailDocIdAtom);
@@ -39,6 +41,79 @@ const App: React.FC = () => {
   const [isNewStudioModalOpen, setIsNewStudioModalOpen] = useState(false);
   const [isAllDocumentsModalOpen, setIsAllDocumentsModalOpen] = useState(false);
   const [leftSidebarExpandedDocId, setLeftSidebarExpandedDocId] = useState<string | null>(null);
+  const [currentSubscription, setCurrentSubscription] = useState<PushSubscriptionJSON | null>(null);
+  const [pushNotificationStatus, setPushNotificationStatus] = useState<string>("확인 중...");
+
+  useEffect(() => {
+    const initializePush = async () => {
+      setPushNotificationStatus("푸시 알림 상태 확인 중...");
+      try {
+        const sub = await registerServiceWorkerAndSubscribe();
+        if (sub) {
+          setCurrentSubscription(sub);
+          setPushNotificationStatus(`알림 구독 중: ${sub.endpoint.substring(0, 30)}...`);
+          console.log("App: 푸시 알림 구독 성공:", sub.endpoint);
+        } else {
+          setPushNotificationStatus("푸시 알림이 구독되지 않았거나 권한이 거부되었습니다.");
+          console.log("App: 푸시 알림 구독에 실패했거나 권한이 거부되었습니다.");
+          // 권한 상태 확인
+          if (Notification.permission === "denied") {
+            setPushNotificationStatus("알림 권한이 차단되었습니다. 브라우저 설정을 확인해주세요.");
+          } else if (Notification.permission === "default") {
+            setPushNotificationStatus("알림 권한이 요청되지 않았습니다. 버튼을 클릭하여 구독하세요.");
+          }
+        }
+      } catch (err) {
+        console.error("App: 푸시 알림 초기화 중 예외 발생:", err);
+        setPushNotificationStatus("푸시 알림 설정 중 오류 발생.");
+      }
+    };
+
+    initializePush();
+  }, []);
+
+  const handleSubscribe = async () => {
+    setPushNotificationStatus("푸시 알림 구독 시도 중...");
+    try {
+      const sub = await registerServiceWorkerAndSubscribe();
+      if (sub) {
+        setCurrentSubscription(sub);
+        setPushNotificationStatus(`알림 구독 완료: ${sub.endpoint.substring(0, 30)}...`);
+        console.log("App: 수동 푸시 알림 구독 성공:", sub.endpoint);
+      } else {
+        setPushNotificationStatus("푸시 알림 구독에 실패했습니다. 권한을 확인해주세요.");
+        if (Notification.permission === "denied") {
+          setPushNotificationStatus("알림 권한이 차단되었습니다. 브라우저 설정을 확인해주세요.");
+        }
+      }
+    } catch (err) {
+      console.error("App: 수동 푸시 알림 구독 중 예외 발생:", err);
+      setPushNotificationStatus("푸시 알림 구독 중 오류 발생.");
+    }
+  };
+
+  const handleUnsubscribe = async () => {
+    if (!currentSubscription) {
+      setPushNotificationStatus("현재 구독된 정보가 없습니다.");
+      return;
+    }
+    setPushNotificationStatus("푸시 알림 구독 해지 시도 중...");
+    try {
+      const success = await unsubscribeFromPushNotifications();
+      if (success) {
+        setCurrentSubscription(null);
+        setPushNotificationStatus("푸시 알림 구독이 해지되었습니다.");
+        console.log("App: 푸시 알림 구독 해지 성공.");
+      } else {
+        setPushNotificationStatus("푸시 알림 구독 해지에 실패했습니다.");
+        console.log("App: 푸시 알림 구독 해지 실패.");
+      }
+    } catch (err) {
+      console.error("App: 푸시 알림 구독 해지 중 예외 발생:", err);
+      setPushNotificationStatus("푸시 알림 구독 해지 중 오류 발생.");
+    }
+  };
+
 
   const handleToggleLeftSidebarExpand = (id: string) => {
     setLeftSidebarExpandedDocId(prevId => {
@@ -138,7 +213,13 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-[#f5f6fa]">
-      <TopBar />
+      <TopBar
+        currentSubscription={currentSubscription}
+        pushNotificationStatus={pushNotificationStatus}
+        onSubscribe={handleSubscribe}
+        onUnsubscribe={handleUnsubscribe}
+      />
+
       <div className="flex flex-1 gap-6 px-8 py-2 overflow-hidden">
         <div
           className={`transition-all duration-300 ease-in-out flex-shrink-0 ${leftSidebarWidthClass}`}
